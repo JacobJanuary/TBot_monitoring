@@ -80,19 +80,20 @@ Screen {
     scrollbar-size: 1 1;
 }
 
-/* DataTable specific styling - Enhanced visibility */
+/* DataTable specific styling - Enhanced visibility with larger font */
 DataTable {
     background: $surface;
     width: 100%;
     height: 100%;
     overflow-y: auto;
+    text-style: bold;
 }
 
 DataTable > .datatable--header {
     background: $accent;
     color: $text;
     text-style: bold;
-    height: 2;
+    height: 3;
 }
 
 DataTable > .datatable--cursor {

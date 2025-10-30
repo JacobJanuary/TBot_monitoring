@@ -18,11 +18,13 @@ class PositionView(BaseModel):
     current_price: Optional[Decimal] = None
     stop_loss_price: Optional[Decimal] = None
     unrealized_pnl: Optional[Decimal] = None
+    pnl_percentage: Optional[Decimal] = None
     status: str
     opened_at: datetime
     closed_at: Optional[datetime] = None
     has_trailing_stop: bool = False
     has_stop_loss: bool = False
+    trailing_activated: bool = False
     ts_state: Optional[str] = None
     ts_activated: Optional[bool] = None
     age_hours: float = 0.0
@@ -33,18 +35,11 @@ class PositionView(BaseModel):
     @computed_field
     @property
     def pnl_percent(self) -> float:
-        """Calculate PnL percentage."""
-        if not self.current_price or not self.entry_price:
-            return 0.0
-
-        if self.side == "LONG":
-            return float(
-                (self.current_price - self.entry_price) / self.entry_price * 100
-            )
-        else:  # SHORT
-            return float(
-                (self.entry_price - self.current_price) / self.entry_price * 100
-            )
+        """Get PnL percentage from database."""
+        # Use pnl_percentage from database directly
+        if self.pnl_percentage is not None:
+            return float(self.pnl_percentage)
+        return 0.0
 
     @computed_field
     @property
@@ -66,12 +61,15 @@ class PositionView(BaseModel):
     @property
     def ts_icon(self) -> str:
         """Get trailing stop status icon."""
-        if not self.has_trailing_stop:
-            return "○"
-        if self.ts_state == "active":
+        # Check multiple sources for activation status
+        # Priority: trailing_activated from positions table, then trailing_stop_state table
+        if self.trailing_activated or self.ts_activated or self.ts_state == "active":
             return "✓"
         elif self.ts_state == "waiting":
             return "⏳"
+        # If no trailing stop state info, check has_trailing_stop flag
+        elif self.has_trailing_stop:
+            return "⏳"  # Has trailing stop but not yet activated
         return "○"
 
 

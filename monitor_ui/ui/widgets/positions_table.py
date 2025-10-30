@@ -9,12 +9,15 @@ from database.models import PositionView
 class PositionsTable(DataTable):
     """Display active positions in a table."""
 
-    # CSS to ensure table fills container
+    # CSS to ensure table fills container with enhanced visibility
     DEFAULT_CSS = """
     PositionsTable {
         width: 100%;
         height: 1fr;
         min-height: 100%;
+    }
+    PositionsTable > .datatable--header {
+        height: 3;
     }
     """
 
@@ -26,15 +29,15 @@ class PositionsTable(DataTable):
         self._setup_columns()
 
     def _setup_columns(self) -> None:
-        """Setup table columns with optimal widths."""
-        # Optimized widths for better space usage without scrolling
-        # Total width ~84 chars - fits well in 80% of screen width
-        self.add_column("Symbol/Exchange", key="symbol", width=20)
-        self.add_column("Side", key="side", width=7)
-        self.add_column("Entry", key="entry", width=12)
-        self.add_column("Current", key="current", width=12)
-        self.add_column("PnL %", key="pnl", width=10)
-        self.add_column("TS", key="ts", width=5)
+        """Setup table columns with optimal widths for full space utilization."""
+        # Increased widths for better visibility and space usage
+        self.add_column("Symbol", key="symbol", width=22)
+        self.add_column("Exchange", key="exchange", width=13)
+        self.add_column("Side", key="side", width=9)
+        self.add_column("Entry", key="entry", width=13)
+        self.add_column("Current", key="current", width=13)
+        self.add_column("PnL %", key="pnl", width=11)
+        self.add_column("TS", key="ts", width=6)
         self.add_column("Age", key="age", width=10)
 
     def update_positions(self, positions: List[PositionView]) -> None:
@@ -54,7 +57,7 @@ class PositionsTable(DataTable):
             # Add empty row with message
             self.add_row(
                 Text("⏳ No active positions", style="bold yellow italic"),
-                "", "", "", "", "", ""
+                "", "", "", "", "", "", ""
             )
             return
 
@@ -62,6 +65,7 @@ class PositionsTable(DataTable):
         for pos in positions:
             self.add_row(
                 self._format_symbol(pos),
+                self._format_exchange(pos),
                 self._format_side(pos),
                 self._format_entry(pos),
                 self._format_current(pos),
@@ -82,17 +86,30 @@ class PositionsTable(DataTable):
             self.call_after_refresh(lambda: self.scroll_to(y=current_scroll_y, animate=False))
 
     def _format_symbol(self, pos: PositionView) -> Text:
-        """Format symbol and exchange with enhanced visibility."""
-        text = Text()
-        text.append(pos.symbol, style="bold bright_white")
-        text.append("\n")
-        text.append(pos.exchange, style="dim bright_cyan")
+        """Format symbol with enhanced visibility."""
+        # Add extra spacing for better readability
+        text = Text(f" {pos.symbol} ", style="bold bright_white")
+        return text
+
+    def _format_exchange(self, pos: PositionView) -> Text:
+        """Format exchange name with color coding."""
+        exchange = pos.exchange.upper()
+        text = Text(f" {exchange} ")
+
+        # Color code by exchange
+        if exchange == "BINANCE":
+            text.stylize("bold bright_yellow")
+        elif exchange == "BYBIT":
+            text.stylize("bold bright_cyan")
+        else:
+            text.stylize("bold bright_white")
+
         return text
 
     def _format_side(self, pos: PositionView) -> Text:
         """Format side with enhanced color."""
-        text = Text(pos.side)
-        if pos.side == "LONG":
+        text = Text(f" {pos.side.upper()} ")
+        if pos.side.upper() == "LONG":
             text.stylize("bold bright_green")
         else:  # SHORT
             text.stylize("bold bright_red")
@@ -101,7 +118,7 @@ class PositionsTable(DataTable):
     def _format_entry(self, pos: PositionView) -> Text:
         """Format entry price with better visibility."""
         text = Text()
-        price_str = f"{float(pos.entry_price):,.2f}"
+        price_str = f" {float(pos.entry_price):,.6f} "
         text.append(price_str, style="bold bright_white")
         return text
 
@@ -109,18 +126,18 @@ class PositionsTable(DataTable):
         """Format current price with NOW indicator."""
         text = Text()
         if pos.current_price:
-            price_str = f"{float(pos.current_price):,.2f}"
+            price_str = f" {float(pos.current_price):,.6f} "
             text.append(price_str, style="bold bright_white")
             text.append("\n")
-            text.append("NOW", style="dim italic cyan")
+            text.append(" NOW ", style="dim italic cyan")
         else:
-            text.append("—", style="dim")
+            text.append(" — ", style="dim")
         return text
 
     def _format_pnl(self, pos: PositionView) -> Text:
         """Format PnL percentage with enhanced color."""
         pnl = pos.pnl_percent
-        text = Text(f"{pnl:+.2f}%")
+        text = Text(f" {pnl:+.2f}% ")
 
         # Enhanced color coding
         if pnl > 1.0:
@@ -137,7 +154,7 @@ class PositionsTable(DataTable):
     def _format_ts(self, pos: PositionView) -> Text:
         """Format trailing stop indicator."""
         icon = pos.ts_icon
-        text = Text(icon)
+        text = Text(f" {icon} ")
 
         if icon == "✓":
             text.stylize("bold bright_green")
@@ -151,7 +168,7 @@ class PositionsTable(DataTable):
     def _format_age(self, pos: PositionView) -> Text:
         """Format position age with enhanced warning colors."""
         age_str = pos.age_formatted
-        text = Text(age_str)
+        text = Text(f" {age_str} ")
 
         # Enhanced warning colors based on age
         if pos.age_hours > 24:

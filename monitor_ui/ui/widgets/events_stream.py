@@ -107,7 +107,7 @@ class EventsStream(RichLog):
 
             # Extract and display key information
             if "price" in data:
-                text.append(f"Price: ${float(data['price']):,.2f}", style="bright_white")
+                text.append(f"Price: ${float(data['price']):,.6f}", style="bright_white")
             if "pnl" in data:
                 pnl_val = float(data['pnl'])
                 pnl_style = "bright_green" if pnl_val > 0 else "bright_red"
