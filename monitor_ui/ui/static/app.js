@@ -304,22 +304,20 @@
 
         const winnersEl = $('#stat-winners');
         winnersEl.textContent = stats.winners || 0;
-        winnersEl.className = 'stat-card__value profit';
+        winnersEl.className = 'metric__val profit';
 
         const losersEl = $('#stat-losers');
         losersEl.textContent = stats.losers || 0;
-        losersEl.className = 'stat-card__value loss';
+        losersEl.className = 'metric__val loss';
 
         const pnlEl = $('#stat-total-pnl');
         const pnl = stats.total_pnl || 0;
         pnlEl.textContent = '$' + formatPnl(pnl);
-        pnlEl.className = 'stat-card__value ' + pnlClass(pnl);
+        pnlEl.className = 'metric__val ' + pnlClass(pnl);
 
         $('#stat-ts-active').textContent = stats.ts_active_count || 0;
 
-        // Status bar chips
-        $('#val-pnl-1h').textContent = '$' + formatPnl(pnl);
-        $('#val-pnl-1h').className = 'stat-chip__value ' + pnlClass(pnl);
+
 
         const wr = stats.win_rate;
         $('#val-winrate').textContent = wr != null ? wr.toFixed(0) + '%' : '—';

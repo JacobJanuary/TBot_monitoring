@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -7,86 +8,83 @@
     <meta name="description" content="Real-time monitoring dashboard for Fox Crypto Trading Bot">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
+        rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
     <link rel="stylesheet" href="/static/styles.css">
 </head>
+
 <body>
-    <!-- ─── Status Bar ─────────────────────────────────────── -->
-    <header id="status-bar" class="status-bar">
-        <div class="status-bar__left">
-            <div class="logo">
+    <!-- ─── Compact Header ───────────────────────────────── -->
+    <header id="status-bar" class="header">
+        <div class="header__top">
+            <div class="header__left">
                 <span class="logo__icon">🦊</span>
                 <span class="logo__text">Fox Monitor</span>
-                <span class="logo__version">v3.0</span>
+                <div class="status-pill" id="connection-status">
+                    <span class="pulse-dot"></span>
+                    <span>Connecting...</span>
+                </div>
             </div>
-            <div class="status-pill" id="connection-status">
-                <span class="pulse-dot"></span>
-                <span>Connecting...</span>
-            </div>
-        </div>
-        <div class="status-bar__center">
-            <div class="stat-chip" id="chip-positions">
-                <span class="stat-chip__label">Positions</span>
-                <span class="stat-chip__value" id="val-positions">0</span>
-            </div>
-            <div class="stat-chip" id="chip-exposure">
-                <span class="stat-chip__label">Exposure</span>
-                <span class="stat-chip__value" id="val-exposure">$0</span>
-            </div>
-            <div class="stat-chip" id="chip-pnl-1h">
-                <span class="stat-chip__label">PnL 1h</span>
-                <span class="stat-chip__value" id="val-pnl-1h">$0.00</span>
-            </div>
-            <div class="stat-chip" id="chip-winrate">
-                <span class="stat-chip__label">Win Rate</span>
-                <span class="stat-chip__value" id="val-winrate">—</span>
+            <div class="header__right">
+                <div class="badge badge--warning" id="badge-warnings" style="display:none">
+                    <span>⚠️</span> <span id="val-warnings">0</span>
+                </div>
+                <div class="badge badge--error" id="badge-errors" style="display:none">
+                    <span>❌</span> <span id="val-errors">0</span>
+                </div>
+                <span class="uptime" id="uptime">—</span>
             </div>
         </div>
-        <div class="status-bar__right">
-            <div class="badge badge--warning" id="badge-warnings" style="display:none">
-                <span>⚠️</span> <span id="val-warnings">0</span>
+        <div class="metrics-strip">
+            <div class="metric">
+                <span class="metric__val" id="val-positions">0</span>
+                <span class="metric__lbl">Positions</span>
             </div>
-            <div class="badge badge--error" id="badge-errors" style="display:none">
-                <span>❌</span> <span id="val-errors">0</span>
+            <div class="metric-sep"></div>
+            <div class="metric">
+                <span class="metric__val" id="val-exposure">$0</span>
+                <span class="metric__lbl">Exposure</span>
             </div>
-            <div class="uptime" id="uptime">Uptime: —</div>
+            <div class="metric-sep"></div>
+            <div class="metric">
+                <span class="metric__val" id="stat-opened">0</span>
+                <span class="metric__lbl">Open</span>
+            </div>
+            <div class="metric">
+                <span class="metric__val" id="stat-closed">0</span>
+                <span class="metric__lbl">Close</span>
+            </div>
+            <div class="metric-sep"></div>
+            <div class="metric">
+                <span class="metric__val profit" id="stat-winners">0</span>
+                <span class="metric__lbl">Win</span>
+            </div>
+            <div class="metric">
+                <span class="metric__val loss" id="stat-losers">0</span>
+                <span class="metric__lbl">Loss</span>
+            </div>
+            <div class="metric-sep"></div>
+            <div class="metric metric--accent">
+                <span class="metric__val" id="stat-total-pnl">$0.00</span>
+                <span class="metric__lbl">PnL 1h</span>
+            </div>
+            <div class="metric-sep"></div>
+            <div class="metric">
+                <span class="metric__val" id="val-winrate">—</span>
+                <span class="metric__lbl">Win%</span>
+            </div>
+            <div class="metric">
+                <span class="metric__val" id="stat-ts-active">0</span>
+                <span class="metric__lbl">TS</span>
+            </div>
         </div>
     </header>
 
     <!-- ─── Main Grid ──────────────────────────────────────── -->
     <main class="dashboard">
-        <!-- Row 1: Stats Cards + PnL Chart -->
-        <section class="card stats-cards" id="stats-section">
-            <h2 class="card__title">Performance (1h)</h2>
-            <div class="stats-grid">
-                <div class="stat-card">
-                    <div class="stat-card__value" id="stat-opened">0</div>
-                    <div class="stat-card__label">Opened</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-card__value" id="stat-closed">0</div>
-                    <div class="stat-card__label">Closed</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-card__value profit" id="stat-winners">0</div>
-                    <div class="stat-card__label">Winners</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-card__value loss" id="stat-losers">0</div>
-                    <div class="stat-card__label">Losers</div>
-                </div>
-                <div class="stat-card stat-card--wide">
-                    <div class="stat-card__value" id="stat-total-pnl">$0.00</div>
-                    <div class="stat-card__label">Total PnL</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-card__value" id="stat-ts-active">0</div>
-                    <div class="stat-card__label">TS Active</div>
-                </div>
-            </div>
-        </section>
-
+        <!-- PnL Chart (full width, compact) -->
         <section class="card pnl-chart-card" id="pnl-section">
             <div class="card__header">
                 <h2 class="card__title">PnL History</h2>
@@ -101,7 +99,7 @@
             </div>
         </section>
 
-        <!-- Row 2: Positions Table -->
+        <!-- Positions Table -->
         <section class="card positions-card" id="positions-section">
             <div class="card__header">
                 <h2 class="card__title">Active Positions</h2>
@@ -124,13 +122,15 @@
                         </tr>
                     </thead>
                     <tbody id="positions-tbody">
-                        <tr class="empty-row"><td colspan="10">Waiting for data...</td></tr>
+                        <tr class="empty-row">
+                            <td colspan="10">Waiting for data...</td>
+                        </tr>
                     </tbody>
                 </table>
             </div>
         </section>
 
-        <!-- Row 3: Events + Trailing Stops -->
+        <!-- Events + Trailing Stops -->
         <section class="card events-card" id="events-section">
             <div class="card__header">
                 <h2 class="card__title">Event Stream</h2>
@@ -159,7 +159,7 @@
             </div>
         </section>
 
-        <!-- Row 4: Risk Events + Aged Positions -->
+        <!-- Risk Events + Aged Positions -->
         <section class="card risk-card" id="risk-section">
             <h2 class="card__title">Risk Events</h2>
             <div class="risk-list" id="risk-list">
@@ -175,11 +175,11 @@
         </section>
     </main>
 
-    <!-- ─── Keyboard Shortcuts Hint ──────────────────────── -->
     <footer class="footer">
-        <span>Press <kbd>R</kbd> refresh · <kbd>P</kbd> pause · <kbd>F</kbd> filter events</span>
+        <span><kbd>R</kbd> refresh · <kbd>P</kbd> pause · <kbd>F</kbd> filter</span>
     </footer>
 
     <script src="/static/app.js"></script>
 </body>
+
 </html>
