@@ -1,153 +1,134 @@
-"""Pydantic models for database entities."""
-from pydantic import BaseModel, Field, computed_field, field_validator
+"""Pydantic models for monitoring database views."""
 from datetime import datetime
-from decimal import Decimal
 from typing import Optional, Any
+from pydantic import BaseModel, computed_field
 import json
 
 
 class PositionView(BaseModel):
-    """Model for active position view."""
-
+    """Active position with trailing stop info."""
     id: int
     symbol: str
     exchange: str
     side: str
-    quantity: Decimal
-    entry_price: Decimal
-    current_price: Optional[Decimal] = None
-    stop_loss_price: Optional[Decimal] = None
-    unrealized_pnl: Optional[Decimal] = None
-    pnl_percentage: Optional[Decimal] = None
-    status: str
-    opened_at: datetime
+    entry_price: float
+    quantity: float
+    current_price: Optional[float] = None
+    unrealized_pnl: Optional[float] = None
+    pnl_percentage: Optional[float] = None
+    stop_loss_price: Optional[float] = None
+    opened_at: Optional[datetime] = None
     closed_at: Optional[datetime] = None
+    status: str = "active"
     has_trailing_stop: bool = False
     has_stop_loss: bool = False
     trailing_activated: bool = False
+    trailing_activation_percent: Optional[float] = None
+    trailing_callback_percent: Optional[float] = None
+    # From trailing_stop_state JOIN
     ts_state: Optional[str] = None
     ts_activated: Optional[bool] = None
-    age_hours: float = 0.0
-
-    class Config:
-        arbitrary_types_allowed = True
-
-    @computed_field
-    @property
-    def pnl_percent(self) -> float:
-        """Get PnL percentage from database."""
-        # Use pnl_percentage from database directly
-        if self.pnl_percentage is not None:
-            return float(self.pnl_percentage)
-        return 0.0
+    ts_highest_price: Optional[float] = None
+    ts_lowest_price: Optional[float] = None
+    ts_current_stop_price: Optional[float] = None
+    ts_activation_price: Optional[float] = None
+    ts_highest_profit_pct: Optional[float] = None
+    age_hours: Optional[float] = None
 
     @computed_field
     @property
-    def age_formatted(self) -> str:
-        """Format position age as human-readable string."""
-        hours = self.age_hours
-        if hours < 1:
-            return f"{int(hours * 60)}m"
-        elif hours < 24:
-            h = int(hours)
-            m = int((hours % 1) * 60)
-            return f"{h}h {m}m"
-        else:
-            days = int(hours / 24)
-            h = int(hours % 24)
-            return f"{days}d {h}h"
+    def side_emoji(self) -> str:
+        return "🟢" if self.side.lower() == "long" else "🔴"
 
     @computed_field
     @property
-    def ts_icon(self) -> str:
-        """Get trailing stop status icon."""
-        # Check multiple sources for activation status
-        # Priority: trailing_activated from positions table, then trailing_stop_state table
-        if self.trailing_activated or self.ts_activated or self.ts_state == "active":
-            return "✓"
-        elif self.ts_state == "waiting":
-            return "⏳"
-        # If no trailing stop state info, check has_trailing_stop flag
-        elif self.has_trailing_stop:
-            return "⏳"  # Has trailing stop but not yet activated
-        return "○"
+    def pnl_class(self) -> str:
+        pnl = self.unrealized_pnl or 0
+        return "profit" if pnl >= 0 else "loss"
+
+    @computed_field
+    @property
+    def age_display(self) -> str:
+        if not self.age_hours:
+            return "—"
+        h = self.age_hours
+        if h < 1:
+            return f"{int(h * 60)}m"
+        if h < 24:
+            return f"{h:.1f}h"
+        return f"{h / 24:.1f}d"
+
+    @computed_field
+    @property
+    def ts_progress(self) -> Optional[float]:
+        """Trailing stop activation progress 0-100%."""
+        if not self.ts_activation_price or not self.entry_price or not self.current_price:
+            return None
+        if self.ts_activated:
+            return 100.0
+        total = abs(self.ts_activation_price - self.entry_price)
+        if total == 0:
+            return 0.0
+        current = abs(self.current_price - self.entry_price)
+        return min(100.0, max(0.0, (current / total) * 100))
 
 
 class EventView(BaseModel):
-    """Model for event log entry."""
-
-    id: Optional[int] = None
-    created_at: datetime
+    """Event log entry."""
+    id: int
+    created_at: Optional[datetime] = None
     event_type: str
     event_data: Optional[Any] = None
     symbol: Optional[str] = None
     exchange: Optional[str] = None
     position_id: Optional[int] = None
-
-    class Config:
-        arbitrary_types_allowed = True
-
-    @field_validator('event_data', mode='before')
-    @classmethod
-    def parse_event_data(cls, v):
-        """Parse event_data if it's a JSON string."""
-        if isinstance(v, str):
-            try:
-                return json.loads(v)
-            except json.JSONDecodeError:
-                return {"message": v}
-        return v
+    severity: str = "INFO"
 
     @computed_field
     @property
-    def formatted_time(self) -> str:
-        """Format timestamp for display."""
-        return self.created_at.strftime("%H:%M:%S")
+    def icon(self) -> str:
+        icons = {
+            "position_created": "📈",
+            "position_closed": "📉",
+            "position_updated": "🔄",
+            "position_error": "❌",
+            "order_placed": "📋",
+            "order_filled": "✅",
+            "order_cancelled": "🚫",
+            "order_error": "❌",
+            "stop_loss_placed": "🛑",
+            "stop_loss_triggered": "⚡",
+            "trailing_stop_activated": "🎯",
+            "trailing_stop_updated": "📊",
+            "trailing_stop_breakeven": "⚖️",
+            "wave_detected": "🌊",
+            "signal_executed": "⚡",
+            "bot_started": "🟢",
+            "bot_stopped": "🔴",
+            "error_occurred": "❌",
+            "warning_raised": "⚠️",
+        }
+        return icons.get(self.event_type, "📝")
 
     @computed_field
     @property
-    def event_message(self) -> str:
-        """Generate formatted event message."""
-        parts = []
-
-        if self.symbol:
-            parts.append(self.symbol)
-
-        if self.event_data:
-            # Extract relevant info from event_data
-            if isinstance(self.event_data, str):
-                try:
-                    data = json.loads(self.event_data)
-                except json.JSONDecodeError:
-                    data = {"message": self.event_data}
-            else:
-                data = self.event_data
-
-            if "price" in data:
-                parts.append(f"@{data['price']:.2f}")
-            if "pnl" in data:
-                parts.append(f"PnL: ${data['pnl']:+.2f}")
-            if "message" in data:
-                parts.append(data["message"])
-
-        return " ".join(parts) if parts else ""
+    def severity_class(self) -> str:
+        return self.severity.lower()
 
 
 class StatsView(BaseModel):
-    """Model for statistics panel."""
-
+    """Hourly statistics."""
     opened_count: int = 0
     closed_count: int = 0
-    ts_active_count: int = 0
     winners: int = 0
     losers: int = 0
-    total_pnl: Decimal = Decimal("0.0")
+    total_pnl: float = 0.0
     avg_duration: Optional[float] = None
+    ts_active_count: int = 0
 
     @computed_field
     @property
     def win_rate(self) -> float:
-        """Calculate win rate percentage."""
         total = self.winners + self.losers
         if total == 0:
             return 0.0
@@ -155,49 +136,113 @@ class StatsView(BaseModel):
 
     @computed_field
     @property
-    def avg_duration_formatted(self) -> str:
-        """Format average duration."""
-        if not self.avg_duration:
-            return "N/A"
-
-        hours = self.avg_duration / 3600
-        if hours < 1:
-            return f"{int(hours * 60)}m"
-        elif hours < 24:
-            return f"{hours:.1f}h"
-        else:
-            return f"{hours / 24:.1f}d"
+    def pnl_display(self) -> str:
+        sign = "+" if self.total_pnl >= 0 else ""
+        return f"{sign}{self.total_pnl:.2f}"
 
 
 class SystemStatus(BaseModel):
-    """Model for system status."""
-
-    status: str = "RUNNING"  # RUNNING, STOPPED, ERROR
-    uptime_seconds: float = 0.0
+    """System status."""
     active_positions: int = 0
-    max_positions: int = 150
-    total_exposure: Decimal = Decimal("0.0")
-    last_update: datetime = Field(default_factory=datetime.now)
+    total_exposure: float = 0.0
+    db_connected: bool = True
+    uptime_seconds: float = 0.0
+    error_count: int = 0
+    warning_count: int = 0
+    critical_count: int = 0
+
+
+class TrailingStopView(BaseModel):
+    """Trailing stop state detail."""
+    id: int
+    symbol: str
+    exchange: str
+    state: str = "inactive"
+    is_activated: bool = False
+    highest_price: Optional[float] = None
+    lowest_price: Optional[float] = None
+    current_stop_price: Optional[float] = None
+    activation_price: Optional[float] = None
+    activation_percent: Optional[float] = None
+    callback_percent: Optional[float] = None
+    entry_price: float = 0.0
+    side: str = "long"
+    quantity: float = 0.0
+    update_count: int = 0
+    highest_profit_percent: Optional[float] = None
+    created_at: Optional[datetime] = None
+    activated_at: Optional[datetime] = None
+    last_update_time: Optional[datetime] = None
 
     @computed_field
     @property
-    def uptime_formatted(self) -> str:
-        """Format uptime as human-readable string."""
-        hours = self.uptime_seconds / 3600
-        if hours < 1:
-            return f"{int(hours * 60)}m"
+    def progress(self) -> float:
+        """Activation progress 0-100%."""
+        if self.is_activated:
+            return 100.0
+        if not self.activation_price or not self.entry_price:
+            return 0.0
+        if self.side.lower() == "long":
+            peak = self.highest_price or self.entry_price
+            total = abs(self.activation_price - self.entry_price)
+            if total == 0:
+                return 0.0
+            current = abs(peak - self.entry_price)
         else:
-            h = int(hours)
-            m = int((hours % 1) * 60)
-            return f"{h}h {m}m"
+            peak = self.lowest_price or self.entry_price
+            total = abs(self.entry_price - self.activation_price)
+            if total == 0:
+                return 0.0
+            current = abs(self.entry_price - peak)
+        return min(100.0, max(0.0, (current / total) * 100))
 
-    @computed_field
-    @property
-    def status_icon(self) -> str:
-        """Get status indicator icon."""
-        if self.status == "RUNNING":
-            return "●"
-        elif self.status == "STOPPED":
-            return "○"
-        else:  # ERROR
-            return "✗"
+
+class RiskEventView(BaseModel):
+    """Risk event entry."""
+    id: int
+    event_type: str
+    risk_level: str
+    position_id: Optional[str] = None
+    details: Optional[Any] = None
+    created_at: Optional[datetime] = None
+
+
+class AgedPositionView(BaseModel):
+    """Aged position entry."""
+    id: int
+    position_id: str
+    symbol: str
+    exchange: str
+    entry_price: float
+    target_price: float
+    phase: str
+    hours_aged: int
+    loss_tolerance: Optional[float] = None
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+
+
+class PnlDataPoint(BaseModel):
+    """PnL data point for chart."""
+    timestamp: datetime
+    trades_count: int = 0
+    total_pnl: float = 0.0
+    avg_pnl: Optional[float] = None
+    winners: Optional[int] = None
+    losers: Optional[int] = None
+
+
+class PerformanceMetricView(BaseModel):
+    """Performance metric record."""
+    period: str
+    total_trades: Optional[int] = None
+    winning_trades: Optional[int] = None
+    losing_trades: Optional[int] = None
+    total_pnl: Optional[float] = None
+    win_rate: Optional[float] = None
+    profit_factor: Optional[float] = None
+    sharpe_ratio: Optional[float] = None
+    max_drawdown: Optional[float] = None
+    avg_win: Optional[float] = None
+    avg_loss: Optional[float] = None
+    created_at: Optional[datetime] = None

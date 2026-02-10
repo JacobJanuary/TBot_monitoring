@@ -19,8 +19,15 @@ SELECT
     p.has_trailing_stop,
     p.has_stop_loss,
     p.trailing_activated,
+    p.trailing_activation_percent,
+    p.trailing_callback_percent,
     ts.state as ts_state,
     ts.is_activated as ts_activated,
+    ts.highest_price as ts_highest_price,
+    ts.lowest_price as ts_lowest_price,
+    ts.current_stop_price as ts_current_stop_price,
+    ts.activation_price as ts_activation_price,
+    ts.highest_profit_percent as ts_highest_profit_pct,
     EXTRACT(EPOCH FROM (NOW() - p.opened_at)) / 3600 as age_hours
 FROM monitoring.positions p
 LEFT JOIN monitoring.trailing_stop_state ts
@@ -38,7 +45,8 @@ SELECT
     event_data,
     symbol,
     exchange,
-    position_id
+    position_id,
+    severity
 FROM monitoring.events
 WHERE created_at > $1
 ORDER BY created_at DESC
@@ -96,35 +104,13 @@ SELECT
 FROM monitoring.positions
 """
 
-# Get latest event timestamp
-LATEST_EVENT_QUERY = """
-SELECT MAX(created_at) as latest_event_time
-FROM monitoring.events
-"""
-
-# Position details query (for future use)
-POSITION_DETAILS_QUERY = """
-SELECT
-    p.*,
-    ts.state as ts_state,
-    ts.highest_price,
-    ts.lowest_price,
-    ts.current_stop_price,
-    ts.activation_price,
-    ts.activated_at
-FROM monitoring.positions p
-LEFT JOIN monitoring.trailing_stop_state ts
-    ON ts.symbol = p.symbol AND ts.exchange = p.exchange
-WHERE p.id = $1
-"""
-
 # Historical PnL data for chart (24 hours, hourly buckets)
 HISTORICAL_PNL_QUERY = """
 SELECT
     date_trunc('hour', closed_at) as hour,
     COUNT(*) as trades_count,
-    SUM(realized_pnl) as total_pnl,
-    AVG(realized_pnl) as avg_pnl
+    SUM(COALESCE(realized_pnl, pnl, 0)) as total_pnl,
+    AVG(COALESCE(realized_pnl, pnl, 0)) as avg_pnl
 FROM monitoring.positions
 WHERE closed_at > NOW() - INTERVAL '24 hours'
     AND status = 'closed'
@@ -132,15 +118,109 @@ GROUP BY date_trunc('hour', closed_at)
 ORDER BY hour ASC
 """
 
-# Event counts by type (for diagnostics)
-EVENT_COUNTS_QUERY = """
+# Daily PnL for chart (30-day view)
+DAILY_PNL_QUERY = """
 SELECT
+    date_trunc('day', closed_at) as day,
+    COUNT(*) as trades_count,
+    SUM(COALESCE(realized_pnl, pnl, 0)) as total_pnl,
+    SUM(CASE WHEN COALESCE(realized_pnl, pnl, 0) > 0 THEN 1 ELSE 0 END) as winners,
+    SUM(CASE WHEN COALESCE(realized_pnl, pnl, 0) < 0 THEN 1 ELSE 0 END) as losers
+FROM monitoring.positions
+WHERE closed_at > NOW() - INTERVAL '30 days'
+    AND status = 'closed'
+GROUP BY date_trunc('day', closed_at)
+ORDER BY day ASC
+"""
+
+# Trailing stop details for all active positions
+TRAILING_STOP_DETAILS_QUERY = """
+SELECT
+    ts.id,
+    ts.symbol,
+    ts.exchange,
+    ts.state,
+    ts.is_activated,
+    ts.highest_price,
+    ts.lowest_price,
+    ts.current_stop_price,
+    ts.activation_price,
+    ts.activation_percent,
+    ts.callback_percent,
+    ts.entry_price,
+    ts.side,
+    ts.quantity,
+    ts.update_count,
+    ts.highest_profit_percent,
+    ts.created_at,
+    ts.activated_at,
+    ts.last_update_time
+FROM monitoring.trailing_stop_state ts
+ORDER BY ts.created_at DESC
+"""
+
+# Risk events (last 50)
+RISK_EVENTS_QUERY = """
+SELECT
+    id,
     event_type,
+    risk_level,
+    position_id,
+    details,
+    created_at
+FROM monitoring.risk_events
+ORDER BY created_at DESC
+LIMIT 50
+"""
+
+# Aged positions
+AGED_POSITIONS_QUERY = """
+SELECT
+    ap.id,
+    ap.position_id,
+    ap.symbol,
+    ap.exchange,
+    ap.entry_price,
+    ap.target_price,
+    ap.phase,
+    ap.hours_aged,
+    ap.loss_tolerance,
+    ap.created_at,
+    ap.updated_at
+FROM monitoring.aged_positions ap
+ORDER BY ap.hours_aged DESC
+LIMIT 50
+"""
+
+# Event severity counts (last hour) for status bar badges
+EVENT_SEVERITY_COUNTS_QUERY = """
+SELECT
+    severity,
     COUNT(*) as count
 FROM monitoring.events
 WHERE created_at > NOW() - INTERVAL '1 hour'
-GROUP BY event_type
-ORDER BY count DESC
+    AND severity IN ('ERROR', 'CRITICAL', 'WARNING')
+GROUP BY severity
+"""
+
+# Performance metrics (latest)
+PERFORMANCE_SUMMARY_QUERY = """
+SELECT
+    period,
+    total_trades,
+    winning_trades,
+    losing_trades,
+    total_pnl,
+    win_rate,
+    profit_factor,
+    sharpe_ratio,
+    max_drawdown,
+    avg_win,
+    avg_loss,
+    created_at
+FROM monitoring.performance_metrics
+ORDER BY created_at DESC
+LIMIT 5
 """
 
 # Health check - verify database accessibility

@@ -29,8 +29,12 @@ class Config:
     STATUS_UPDATE_INTERVAL = float(os.getenv("STATUS_UPDATE_INTERVAL", "5.0"))
     STATS_UPDATE_INTERVAL = float(os.getenv("STATS_UPDATE_INTERVAL", "10.0"))
 
+    # Web server settings
+    WEB_HOST = os.getenv("WEB_HOST", "0.0.0.0")
+    WEB_PORT = int(os.getenv("WEB_PORT", "8080"))
+
     # UI settings
-    MAX_EVENTS_DISPLAY = int(os.getenv("MAX_EVENTS_DISPLAY", "50"))
+    MAX_EVENTS_DISPLAY = int(os.getenv("MAX_EVENTS_DISPLAY", "100"))
     POSITION_AGE_WARNING_HOURS = int(os.getenv("POSITION_AGE_WARNING_HOURS", "12"))
     POSITION_AGE_CRITICAL_HOURS = int(os.getenv("POSITION_AGE_CRITICAL_HOURS", "24"))
 

@@ -1,0 +1,22 @@
+[Unit]
+Description=Fox Crypto Trading Bot Monitor Dashboard
+After=network.target postgresql.service
+Wants=postgresql.service
+
+[Service]
+Type=simple
+User=trading
+Group=trading
+WorkingDirectory=/opt/monitor_ui
+ExecStart=/opt/monitor_ui/venv/bin/python main.py --host 127.0.0.1 --port 8080
+Restart=always
+RestartSec=5
+Environment=PYTHONUNBUFFERED=1
+
+# Security hardening
+NoNewPrivileges=yes
+ProtectSystem=strict
+ReadWritePaths=/opt/monitor_ui
+
+[Install]
+WantedBy=multi-user.target

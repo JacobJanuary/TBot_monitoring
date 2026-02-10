@@ -1,155 +1,164 @@
-#!/usr/bin/env python3
-"""Main entry point for Trading Bot Monitor UI."""
-import asyncio
+"""Main entry point — FastAPI web dashboard for trading bot monitoring."""
 import argparse
+import asyncio
 import logging
 import sys
+import os
 from pathlib import Path
+from contextlib import asynccontextmanager
 
-# Add parent directory to path for imports
-sys.path.insert(0, str(Path(__file__).parent))
+import uvicorn
+from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 
-from database.connection import DatabasePool
-from ui.app import run_monitor_app
 from config import Config
+from database.connection import DatabasePool
+from services.data_fetcher import DataFetcher
+from api import router, set_fetcher, ws_live, ws_push_loop
+
+logger = logging.getLogger(__name__)
 
 
-def setup_logging(log_level: str = "INFO", log_file: str | None = None) -> None:
-    """Setup logging configuration."""
-    level = getattr(logging, log_level.upper(), logging.INFO)
+def parse_args():
+    parser = argparse.ArgumentParser(description="Fox Trading Bot Monitor — Web Dashboard")
+    parser.add_argument("--db-host", default=None, help="Database host")
+    parser.add_argument("--db-port", type=int, default=None, help="Database port")
+    parser.add_argument("--db-name", default=None, help="Database name")
+    parser.add_argument("--db-user", default=None, help="Database user")
+    parser.add_argument("--db-password", default=None, help="Database password")
+    parser.add_argument("--port", type=int, default=None, help="Web server port (default: 8080)")
+    parser.add_argument("--host", default=None, help="Web server host (default: 0.0.0.0)")
+    parser.add_argument("--log-level", default="INFO", choices=["DEBUG", "INFO", "WARNING", "ERROR"])
+    return parser.parse_args()
 
-    handlers = [logging.StreamHandler()]
 
-    if log_file:
-        handlers.append(logging.FileHandler(log_file))
-
+def setup_logging(level: str):
+    log_file = Path(__file__).parent / "monitor_ui.log"
     logging.basicConfig(
-        level=level,
-        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-        handlers=handlers,
+        level=getattr(logging, level),
+        format="%(asctime)s | %(levelname)-8s | %(name)s | %(message)s",
+        handlers=[
+            logging.FileHandler(log_file),
+            logging.StreamHandler(sys.stdout),
+        ],
     )
 
 
-async def main():
-    """Main application entry point."""
-    parser = argparse.ArgumentParser(
-        description="Fox Crypto Trading Bot Monitor",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""
-Examples:
-  # Run with default settings (localhost database)
-  python main.py
+# Global references for lifespan
+_pool = None
+_fetcher = None
+_push_task = None
 
-  # Connect to remote database
-  python main.py --db-host remote.server.com --db-user trader
 
-  # Enable debug logging
-  python main.py --log-level DEBUG
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Manage startup and shutdown."""
+    global _pool, _fetcher, _push_task
 
-  # Use custom database
-  python main.py --db-name my_trading_db --db-port 5433
-        """,
-    )
+    args = app.state.args
+    config = Config()
 
-    # Database arguments
-    parser.add_argument(
-        "--db-host",
-        default=Config.DB_HOST,
-        help=f"Database host (default: {Config.DB_HOST})",
-    )
-    parser.add_argument(
-        "--db-port",
-        type=int,
-        default=Config.DB_PORT,
-        help=f"Database port (default: {Config.DB_PORT})",
-    )
-    parser.add_argument(
-        "--db-name",
-        default=Config.DB_NAME,
-        help=f"Database name (default: {Config.DB_NAME})",
-    )
-    parser.add_argument(
-        "--db-user",
-        default=Config.DB_USER,
-        help=f"Database user (default: {Config.DB_USER})",
-    )
-    parser.add_argument(
-        "--db-password", default=Config.DB_PASSWORD, help="Database password"
-    )
+    # Override config with CLI args
+    db_host = args.db_host or config.DB_HOST
+    db_port = args.db_port or config.DB_PORT
+    db_name = args.db_name or config.DB_NAME
+    db_user = args.db_user or config.DB_USER
+    db_password = args.db_password or config.DB_PASSWORD
 
-    # Logging arguments
-    parser.add_argument(
-        "--log-level",
-        default=Config.LOG_LEVEL,
-        choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
-        help=f"Logging level (default: {Config.LOG_LEVEL})",
+    logger.info(f"Connecting to {db_host}:{db_port}/{db_name} as {db_user}")
+
+    # Initialize database pool
+    await DatabasePool.initialize(
+        host=db_host,
+        port=db_port,
+        database=db_name,
+        user=db_user,
+        password=db_password,
     )
-    parser.add_argument(
-        "--log-file", default=Config.LOG_FILE, help="Log file path (optional)"
-    )
+    _pool = await DatabasePool.get_pool()
 
-    # Connection pool arguments
-    parser.add_argument(
-        "--pool-min",
-        type=int,
-        default=Config.DB_MIN_POOL_SIZE,
-        help=f"Minimum pool size (default: {Config.DB_MIN_POOL_SIZE})",
-    )
-    parser.add_argument(
-        "--pool-max",
-        type=int,
-        default=Config.DB_MAX_POOL_SIZE,
-        help=f"Maximum pool size (default: {Config.DB_MAX_POOL_SIZE})",
-    )
-
-    args = parser.parse_args()
-
-    # Setup logging
-    setup_logging(args.log_level, args.log_file)
-    logger = logging.getLogger(__name__)
-
-    logger.info("Starting Fox Crypto Trading Bot Monitor")
-    logger.info(f"Connecting to database: {args.db_name}@{args.db_host}:{args.db_port}")
-
+    # Test connection
     try:
-        # Initialize database connection pool
-        await DatabasePool.initialize(
-            host=args.db_host,
-            port=args.db_port,
-            database=args.db_name,
-            user=args.db_user,
-            password=args.db_password,
-            min_size=args.pool_min,
-            max_size=args.pool_max,
-        )
-
-        # Test connection
-        logger.info("Testing database connection...")
-        if await DatabasePool.test_connection():
-            logger.info("Database connection successful")
-        else:
-            logger.error("Database connection test failed")
-            sys.exit(1)
-
-        # Run the monitor app
-        logger.info("Starting monitor UI...")
-        await run_monitor_app()
-
-    except KeyboardInterrupt:
-        logger.info("Received keyboard interrupt, shutting down...")
+        async with _pool.acquire() as conn:
+            version = await conn.fetchval("SELECT version()")
+            logger.info(f"Database connected: {version[:60]}...")
     except Exception as e:
-        logger.error(f"Fatal error: {e}", exc_info=True)
-        sys.exit(1)
-    finally:
-        # Cleanup
-        logger.info("Closing database connections...")
-        await DatabasePool.close()
-        logger.info("Monitor shutdown complete")
+        logger.error(f"Database connection failed: {e}")
+        raise
+
+    # Initialize data fetcher
+    _fetcher = DataFetcher(_pool)
+    set_fetcher(_fetcher)
+
+    # Initial data load
+    logger.info("Loading initial data...")
+    await _fetcher.fetch_all_fast()
+    await _fetcher.fetch_all_slow()
+    logger.info("Initial data loaded")
+
+    # Start WebSocket push background task
+    _push_task = asyncio.create_task(ws_push_loop(_fetcher))
+    logger.info("WebSocket push loop started")
+
+    yield
+
+    # Shutdown
+    logger.info("Shutting down...")
+    if _push_task:
+        _push_task.cancel()
+        try:
+            await _push_task
+        except asyncio.CancelledError:
+            pass
+    await DatabasePool.close()
+    logger.info("Shutdown complete")
+
+
+def create_app() -> FastAPI:
+    app = FastAPI(
+        title="Fox Crypto Trading Bot Monitor",
+        version="3.0.0",
+        lifespan=lifespan,
+    )
+
+    # API routes
+    app.include_router(router)
+
+    # WebSocket
+    app.add_websocket_route("/ws/live", ws_live)
+
+    # Static files
+    static_dir = Path(__file__).parent / "ui" / "static"
+    static_dir.mkdir(parents=True, exist_ok=True)
+    app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
+
+    # Serve index.html at root
+    @app.get("/")
+    async def root():
+        index_file = static_dir / "index.html"
+        if index_file.exists():
+            return FileResponse(str(index_file))
+        return {"message": "Monitor UI — static files not found. Place index.html in ui/static/"}
+
+    return app
+
+
+def main():
+    args = parse_args()
+    setup_logging(args.log_level)
+
+    config = Config()
+    host = args.host or config.WEB_HOST
+    port = args.port or config.WEB_PORT
+
+    logger.info(f"Starting Fox Trading Bot Monitor v3.0 on {host}:{port}")
+
+    app = create_app()
+    app.state.args = args
+
+    uvicorn.run(app, host=host, port=port, log_level=args.log_level.lower())
 
 
 if __name__ == "__main__":
-    try:
-        asyncio.run(main())
-    except KeyboardInterrupt:
-        print("\nShutdown complete")
-        sys.exit(0)
+    main()

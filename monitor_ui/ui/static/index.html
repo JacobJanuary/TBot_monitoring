@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fox Crypto Trading Bot Monitor</title>
+    <meta name="description" content="Real-time monitoring dashboard for Fox Crypto Trading Bot">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+    <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+    <!-- ─── Status Bar ─────────────────────────────────────── -->
+    <header id="status-bar" class="status-bar">
+        <div class="status-bar__left">
+            <div class="logo">
+                <span class="logo__icon">🦊</span>
+                <span class="logo__text">Fox Monitor</span>
+                <span class="logo__version">v3.0</span>
+            </div>
+            <div class="status-pill" id="connection-status">
+                <span class="pulse-dot"></span>
+                <span>Connecting...</span>
+            </div>
+        </div>
+        <div class="status-bar__center">
+            <div class="stat-chip" id="chip-positions">
+                <span class="stat-chip__label">Positions</span>
+                <span class="stat-chip__value" id="val-positions">0</span>
+            </div>
+            <div class="stat-chip" id="chip-exposure">
+                <span class="stat-chip__label">Exposure</span>
+                <span class="stat-chip__value" id="val-exposure">$0</span>
+            </div>
+            <div class="stat-chip" id="chip-pnl-1h">
+                <span class="stat-chip__label">PnL 1h</span>
+                <span class="stat-chip__value" id="val-pnl-1h">$0.00</span>
+            </div>
+            <div class="stat-chip" id="chip-winrate">
+                <span class="stat-chip__label">Win Rate</span>
+                <span class="stat-chip__value" id="val-winrate">—</span>
+            </div>
+        </div>
+        <div class="status-bar__right">
+            <div class="badge badge--warning" id="badge-warnings" style="display:none">
+                <span>⚠️</span> <span id="val-warnings">0</span>
+            </div>
+            <div class="badge badge--error" id="badge-errors" style="display:none">
+                <span>❌</span> <span id="val-errors">0</span>
+            </div>
+            <div class="uptime" id="uptime">Uptime: —</div>
+        </div>
+    </header>
+
+    <!-- ─── Main Grid ──────────────────────────────────────── -->
+    <main class="dashboard">
+        <!-- Row 1: Stats Cards + PnL Chart -->
+        <section class="card stats-cards" id="stats-section">
+            <h2 class="card__title">Performance (1h)</h2>
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-card__value" id="stat-opened">0</div>
+                    <div class="stat-card__label">Opened</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-card__value" id="stat-closed">0</div>
+                    <div class="stat-card__label">Closed</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-card__value profit" id="stat-winners">0</div>
+                    <div class="stat-card__label">Winners</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-card__value loss" id="stat-losers">0</div>
+                    <div class="stat-card__label">Losers</div>
+                </div>
+                <div class="stat-card stat-card--wide">
+                    <div class="stat-card__value" id="stat-total-pnl">$0.00</div>
+                    <div class="stat-card__label">Total PnL</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-card__value" id="stat-ts-active">0</div>
+                    <div class="stat-card__label">TS Active</div>
+                </div>
+            </div>
+        </section>
+
+        <section class="card pnl-chart-card" id="pnl-section">
+            <div class="card__header">
+                <h2 class="card__title">PnL History</h2>
+                <div class="period-tabs">
+                    <button class="tab active" data-period="24h">24H</button>
+                    <button class="tab" data-period="7d">7D</button>
+                    <button class="tab" data-period="30d">30D</button>
+                </div>
+            </div>
+            <div class="chart-container">
+                <canvas id="pnl-chart"></canvas>
+            </div>
+        </section>
+
+        <!-- Row 2: Positions Table -->
+        <section class="card positions-card" id="positions-section">
+            <div class="card__header">
+                <h2 class="card__title">Active Positions</h2>
+                <span class="card__count" id="positions-count">0</span>
+            </div>
+            <div class="table-wrapper">
+                <table class="data-table" id="positions-table">
+                    <thead>
+                        <tr>
+                            <th>Symbol</th>
+                            <th>Exchange</th>
+                            <th>Side</th>
+                            <th>Entry</th>
+                            <th>Current</th>
+                            <th>PnL</th>
+                            <th>PnL %</th>
+                            <th>Stop Loss</th>
+                            <th>Trailing</th>
+                            <th>Age</th>
+                        </tr>
+                    </thead>
+                    <tbody id="positions-tbody">
+                        <tr class="empty-row"><td colspan="10">Waiting for data...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- Row 3: Events + Trailing Stops -->
+        <section class="card events-card" id="events-section">
+            <div class="card__header">
+                <h2 class="card__title">Event Stream</h2>
+                <div class="event-controls">
+                    <select id="event-filter" class="select-mini">
+                        <option value="all">All Events</option>
+                        <option value="position">Positions</option>
+                        <option value="order">Orders</option>
+                        <option value="stop">Stop Loss</option>
+                        <option value="trailing">Trailing</option>
+                        <option value="wave">Waves</option>
+                        <option value="error">Errors</option>
+                    </select>
+                    <button class="btn-icon" id="btn-clear-events" title="Clear">🗑️</button>
+                </div>
+            </div>
+            <div class="events-stream" id="events-stream">
+                <div class="event-placeholder">Waiting for events...</div>
+            </div>
+        </section>
+
+        <section class="card trailing-card" id="trailing-section">
+            <h2 class="card__title">Trailing Stops</h2>
+            <div class="trailing-list" id="trailing-list">
+                <div class="event-placeholder">No active trailing stops</div>
+            </div>
+        </section>
+
+        <!-- Row 4: Risk Events + Aged Positions -->
+        <section class="card risk-card" id="risk-section">
+            <h2 class="card__title">Risk Events</h2>
+            <div class="risk-list" id="risk-list">
+                <div class="event-placeholder">No risk events</div>
+            </div>
+        </section>
+
+        <section class="card aged-card" id="aged-section">
+            <h2 class="card__title">Aged Positions</h2>
+            <div class="aged-list" id="aged-list">
+                <div class="event-placeholder">No aged positions</div>
+            </div>
+        </section>
+    </main>
+
+    <!-- ─── Keyboard Shortcuts Hint ──────────────────────── -->
+    <footer class="footer">
+        <span>Press <kbd>R</kbd> refresh · <kbd>P</kbd> pause · <kbd>F</kbd> filter events</span>
+    </footer>
+
+    <script src="/static/app.js"></script>
+</body>
+</html>

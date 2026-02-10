@@ -1,218 +1,273 @@
-"""Data fetching service with async polling."""
-import asyncio
-from typing import List, Optional
-from datetime import datetime, timedelta
+"""DataFetcher — async database polling service for the web dashboard."""
 import logging
+import asyncio
+from datetime import datetime, timezone, timedelta
+from typing import List, Optional, Dict, Any
+from decimal import Decimal
 
-from database.connection import DatabasePool
-from database.models import PositionView, EventView, StatsView, SystemStatus
-from database import queries
+from database.queries import (
+    ACTIVE_POSITIONS_QUERY,
+    RECENT_EVENTS_QUERY,
+    STATISTICS_QUERY,
+    SYSTEM_STATUS_QUERY,
+    HISTORICAL_PNL_QUERY,
+    DAILY_PNL_QUERY,
+    TRAILING_STOP_DETAILS_QUERY,
+    RISK_EVENTS_QUERY,
+    AGED_POSITIONS_QUERY,
+    EVENT_SEVERITY_COUNTS_QUERY,
+    PERFORMANCE_SUMMARY_QUERY,
+    HEALTH_CHECK_QUERY,
+)
+from database.models import (
+    PositionView,
+    EventView,
+    StatsView,
+    SystemStatus,
+    TrailingStopView,
+    RiskEventView,
+    AgedPositionView,
+    PnlDataPoint,
+    PerformanceMetricView,
+)
 
 logger = logging.getLogger(__name__)
 
 
+def _to_float(val) -> Optional[float]:
+    """Convert Decimal or any numeric to float."""
+    if val is None:
+        return None
+    if isinstance(val, Decimal):
+        return float(val)
+    return float(val)
+
+
+def _row_to_dict(row) -> dict:
+    """Convert asyncpg Record to dict with Decimal→float coercion."""
+    d = {}
+    for key in row.keys():
+        val = row[key]
+        if isinstance(val, Decimal):
+            d[key] = float(val)
+        else:
+            d[key] = val
+    return d
+
+
 class DataFetcher:
-    """Async data fetcher with caching and error handling."""
+    """Fetches data from monitoring DB and caches results."""
 
-    def __init__(self):
-        self.running = False
-        self.last_event_time = datetime.now() - timedelta(minutes=5)
-
-        # Cached data
-        self.positions_cache: List[PositionView] = []
-        self.events_cache: List[EventView] = []
-        self.stats_cache: Optional[StatsView] = None
-        self.status_cache: Optional[SystemStatus] = None
-
+    def __init__(self, pool):
+        self.pool = pool
+        self._start_time = datetime.now(timezone.utc)
+        # Caches
+        self._positions: List[PositionView] = []
+        self._events: List[EventView] = []
+        self._stats: Optional[StatsView] = None
+        self._status: Optional[SystemStatus] = None
+        self._trailing_stops: List[TrailingStopView] = []
+        self._risk_events: List[RiskEventView] = []
+        self._aged_positions: List[AgedPositionView] = []
+        self._pnl_hourly: List[PnlDataPoint] = []
+        self._pnl_daily: List[PnlDataPoint] = []
+        self._performance: List[PerformanceMetricView] = []
+        self._severity_counts: Dict[str, int] = {}
+        # Last event timestamp for incremental fetch
+        self._last_event_ts = datetime.now(timezone.utc) - timedelta(hours=1)
         # Error tracking
-        self.error_count = 0
-        self.max_errors = 5
-        self.last_error: Optional[str] = None
+        self._consecutive_errors = 0
 
-        # Performance metrics
-        self.start_time = datetime.now()
-
-    async def fetch_active_positions(self) -> List[PositionView]:
-        """Fetch all active positions with trailing stop info."""
+    async def _execute_query(self, query: str, *args):
+        """Execute query and return rows."""
         try:
-            pool = await DatabasePool.get_pool()
-            async with pool.acquire() as conn:
-                rows = await conn.fetch(queries.ACTIVE_POSITIONS_QUERY)
-                positions = []
-                for row in rows:
-                    try:
-                        pos_dict = dict(row)
-                        positions.append(PositionView(**pos_dict))
-                    except Exception as e:
-                        logger.warning(f"Failed to parse position: {e}")
-                        continue
-
-                self.error_count = 0
-                return positions
-
+            async with self.pool.acquire() as conn:
+                rows = await conn.fetch(query, *args)
+            self._consecutive_errors = 0
+            return rows
         except Exception as e:
-            self.error_count += 1
-            self.last_error = str(e)
-            logger.error(f"Failed to fetch positions: {e}")
+            self._consecutive_errors += 1
+            logger.error(f"Query error (consecutive: {self._consecutive_errors}): {e}")
+            raise
 
-            # Return cached data on error
-            if self.error_count < self.max_errors:
-                return self.positions_cache
-            else:
-                logger.critical(f"Max errors reached ({self.max_errors})")
-                return []
+    # ─── Core data fetchers ─────────────────────────────────────
 
-    async def fetch_recent_events(self) -> List[EventView]:
-        """Fetch events since last poll."""
+    async def fetch_positions(self) -> List[PositionView]:
         try:
-            pool = await DatabasePool.get_pool()
-            async with pool.acquire() as conn:
-                rows = await conn.fetch(
-                    queries.RECENT_EVENTS_QUERY, self.last_event_time
-                )
+            rows = await self._execute_query(ACTIVE_POSITIONS_QUERY)
+            self._positions = [PositionView(**_row_to_dict(r)) for r in rows]
+        except Exception:
+            pass  # keep cached
+        return self._positions
 
-                events = []
-                for row in rows:
-                    try:
-                        event_dict = dict(row)
-                        events.append(EventView(**event_dict))
-                    except Exception as e:
-                        logger.warning(f"Failed to parse event: {e}")
-                        continue
-
-                # Update last event time if we got events
-                if events:
-                    self.last_event_time = events[0].created_at
-
-                return events
-
-        except Exception as e:
-            logger.error(f"Failed to fetch events: {e}")
-            return []
-
-    async def fetch_statistics(self) -> Optional[StatsView]:
-        """Fetch hourly statistics."""
+    async def fetch_events(self) -> List[EventView]:
         try:
-            pool = await DatabasePool.get_pool()
-            async with pool.acquire() as conn:
-                row = await conn.fetchrow(queries.STATISTICS_QUERY)
-                if row:
-                    stats_dict = dict(row)
-                    return StatsView(**stats_dict)
-                return None
-
-        except Exception as e:
-            logger.error(f"Failed to fetch statistics: {e}")
-            return self.stats_cache
-
-    async def fetch_system_status(self) -> Optional[SystemStatus]:
-        """Fetch system status."""
-        try:
-            pool = await DatabasePool.get_pool()
-            async with pool.acquire() as conn:
-                row = await conn.fetchrow(queries.SYSTEM_STATUS_QUERY)
-                if row:
-                    uptime = (datetime.now() - self.start_time).total_seconds()
-                    status = SystemStatus(
-                        status="RUNNING" if self.error_count < self.max_errors else "ERROR",
-                        uptime_seconds=uptime,
-                        active_positions=row["active_positions"],
-                        total_exposure=row["total_exposure"],
-                        last_update=datetime.now(),
-                    )
-                    return status
-                return None
-
-        except Exception as e:
-            logger.error(f"Failed to fetch system status: {e}")
-            return self.status_cache
-
-    async def start_polling(self):
-        """Start all polling tasks."""
-        self.running = True
-        logger.info("Starting data fetcher polling loops")
-
-        # Run all polling tasks concurrently
-        await asyncio.gather(
-            self._poll_positions(),
-            self._poll_events(),
-            self._poll_statistics(),
-            self._poll_status(),
-            return_exceptions=True,
-        )
-
-    async def stop_polling(self):
-        """Stop all polling tasks."""
-        self.running = False
-        logger.info("Stopping data fetcher")
-
-    async def _poll_positions(self):
-        """Poll positions every 1 second."""
-        while self.running:
-            try:
-                positions = await self.fetch_active_positions()
-                if positions is not None:
-                    self.positions_cache = positions
-            except Exception as e:
-                logger.error(f"Position polling error: {e}")
-
-            await asyncio.sleep(1.0)
-
-    async def _poll_events(self):
-        """Poll events every 1 second."""
-        while self.running:
-            try:
-                new_events = await self.fetch_recent_events()
+            rows = await self._execute_query(RECENT_EVENTS_QUERY, self._last_event_ts)
+            if rows:
+                new_events = [EventView(**_row_to_dict(r)) for r in rows]
+                # Merge with existing, dedup by id
+                existing_ids = {e.id for e in self._events}
+                for ev in new_events:
+                    if ev.id not in existing_ids:
+                        self._events.insert(0, ev)
+                # Trim to 200
+                self._events = self._events[:200]
+                # Update timestamp
                 if new_events:
-                    # Prepend new events to cache
-                    self.events_cache = new_events + self.events_cache
-                    # Keep only last 100 events
-                    self.events_cache = self.events_cache[:100]
-            except Exception as e:
-                logger.error(f"Event polling error: {e}")
+                    latest = max(e.created_at for e in new_events if e.created_at)
+                    if latest:
+                        self._last_event_ts = latest
+        except Exception:
+            pass
+        return self._events
 
-            await asyncio.sleep(1.0)
+    async def fetch_stats(self) -> Optional[StatsView]:
+        try:
+            rows = await self._execute_query(STATISTICS_QUERY)
+            if rows:
+                self._stats = StatsView(**_row_to_dict(rows[0]))
+        except Exception:
+            pass
+        return self._stats
 
-    async def _poll_statistics(self):
-        """Poll statistics every 10 seconds."""
-        while self.running:
-            try:
-                stats = await self.fetch_statistics()
-                if stats:
-                    self.stats_cache = stats
-            except Exception as e:
-                logger.error(f"Statistics polling error: {e}")
+    async def fetch_status(self) -> Optional[SystemStatus]:
+        try:
+            rows = await self._execute_query(SYSTEM_STATUS_QUERY)
+            if rows:
+                d = _row_to_dict(rows[0])
+                uptime = (datetime.now(timezone.utc) - self._start_time).total_seconds()
+                d["uptime_seconds"] = uptime
+                d["db_connected"] = True
+                # Merge severity counts
+                d["error_count"] = self._severity_counts.get("ERROR", 0)
+                d["warning_count"] = self._severity_counts.get("WARNING", 0)
+                d["critical_count"] = self._severity_counts.get("CRITICAL", 0)
+                self._status = SystemStatus(**d)
+        except Exception:
+            if self._status:
+                self._status.db_connected = False
+        return self._status
 
-            await asyncio.sleep(10.0)
+    # ─── New data fetchers ──────────────────────────────────────
 
-    async def _poll_status(self):
-        """Poll system status every 5 seconds."""
-        while self.running:
-            try:
-                status = await self.fetch_system_status()
-                if status:
-                    self.status_cache = status
-            except Exception as e:
-                logger.error(f"Status polling error: {e}")
+    async def fetch_trailing_stops(self) -> List[TrailingStopView]:
+        try:
+            rows = await self._execute_query(TRAILING_STOP_DETAILS_QUERY)
+            self._trailing_stops = [TrailingStopView(**_row_to_dict(r)) for r in rows]
+        except Exception:
+            pass
+        return self._trailing_stops
 
-            await asyncio.sleep(5.0)
+    async def fetch_risk_events(self) -> List[RiskEventView]:
+        try:
+            rows = await self._execute_query(RISK_EVENTS_QUERY)
+            self._risk_events = [RiskEventView(**_row_to_dict(r)) for r in rows]
+        except Exception:
+            pass
+        return self._risk_events
 
-    def get_positions(self) -> List[PositionView]:
-        """Get cached positions."""
-        return self.positions_cache
+    async def fetch_aged_positions(self) -> List[AgedPositionView]:
+        try:
+            rows = await self._execute_query(AGED_POSITIONS_QUERY)
+            self._aged_positions = [AgedPositionView(**_row_to_dict(r)) for r in rows]
+        except Exception:
+            pass
+        return self._aged_positions
 
-    def get_events(self) -> List[EventView]:
-        """Get cached events."""
-        return self.events_cache
+    async def fetch_pnl_hourly(self) -> List[PnlDataPoint]:
+        try:
+            rows = await self._execute_query(HISTORICAL_PNL_QUERY)
+            self._pnl_hourly = [
+                PnlDataPoint(
+                    timestamp=r["hour"],
+                    trades_count=r["trades_count"],
+                    total_pnl=_to_float(r["total_pnl"]) or 0,
+                    avg_pnl=_to_float(r["avg_pnl"]),
+                )
+                for r in rows
+            ]
+        except Exception:
+            pass
+        return self._pnl_hourly
 
-    def get_statistics(self) -> Optional[StatsView]:
-        """Get cached statistics."""
-        return self.stats_cache
+    async def fetch_pnl_daily(self) -> List[PnlDataPoint]:
+        try:
+            rows = await self._execute_query(DAILY_PNL_QUERY)
+            self._pnl_daily = [
+                PnlDataPoint(
+                    timestamp=r["day"],
+                    trades_count=r["trades_count"],
+                    total_pnl=_to_float(r["total_pnl"]) or 0,
+                    winners=r["winners"],
+                    losers=r["losers"],
+                )
+                for r in rows
+            ]
+        except Exception:
+            pass
+        return self._pnl_daily
 
-    def get_status(self) -> Optional[SystemStatus]:
-        """Get cached system status."""
-        return self.status_cache
+    async def fetch_performance(self) -> List[PerformanceMetricView]:
+        try:
+            rows = await self._execute_query(PERFORMANCE_SUMMARY_QUERY)
+            self._performance = [PerformanceMetricView(**_row_to_dict(r)) for r in rows]
+        except Exception:
+            pass
+        return self._performance
 
-    def has_errors(self) -> bool:
-        """Check if there are connection errors."""
-        return self.error_count >= self.max_errors
+    async def fetch_severity_counts(self) -> Dict[str, int]:
+        try:
+            rows = await self._execute_query(EVENT_SEVERITY_COUNTS_QUERY)
+            self._severity_counts = {r["severity"]: r["count"] for r in rows}
+        except Exception:
+            pass
+        return self._severity_counts
+
+    # ─── Batch fetchers ──────────────────────────────────────────
+
+    async def fetch_all_fast(self) -> Dict[str, Any]:
+        """Fetch fast-updating data (positions, events, stats) in parallel."""
+        await asyncio.gather(
+            self.fetch_positions(),
+            self.fetch_events(),
+            self.fetch_stats(),
+            self.fetch_severity_counts(),
+        )
+        return self.get_snapshot_fast()
+
+    async def fetch_all_slow(self) -> Dict[str, Any]:
+        """Fetch slow-updating data (PnL, risk, trailing, performance)."""
+        await asyncio.gather(
+            self.fetch_status(),
+            self.fetch_trailing_stops(),
+            self.fetch_risk_events(),
+            self.fetch_aged_positions(),
+            self.fetch_pnl_hourly(),
+            self.fetch_pnl_daily(),
+            self.fetch_performance(),
+        )
+        return self.get_snapshot_slow()
+
+    # ─── Snapshot getters ────────────────────────────────────────
+
+    def get_snapshot_fast(self) -> Dict[str, Any]:
+        return {
+            "positions": [p.model_dump(mode="json") for p in self._positions],
+            "events": [e.model_dump(mode="json") for e in self._events[:50]],
+            "stats": self._stats.model_dump(mode="json") if self._stats else None,
+            "severity_counts": self._severity_counts,
+        }
+
+    def get_snapshot_slow(self) -> Dict[str, Any]:
+        return {
+            "status": self._status.model_dump(mode="json") if self._status else None,
+            "trailing_stops": [t.model_dump(mode="json") for t in self._trailing_stops],
+            "risk_events": [r.model_dump(mode="json") for r in self._risk_events],
+            "aged_positions": [a.model_dump(mode="json") for a in self._aged_positions],
+            "pnl_hourly": [p.model_dump(mode="json") for p in self._pnl_hourly],
+            "pnl_daily": [p.model_dump(mode="json") for p in self._pnl_daily],
+            "performance": [p.model_dump(mode="json") for p in self._performance],
+        }
+
+    def get_full_snapshot(self) -> Dict[str, Any]:
+        return {**self.get_snapshot_fast(), **self.get_snapshot_slow()}
