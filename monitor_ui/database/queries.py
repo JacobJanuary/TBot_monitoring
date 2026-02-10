@@ -174,22 +174,25 @@ LIMIT 50
 """
 
 # Aged positions
-AGED_POSITIONS_QUERY = """
+RECENT_TRADES_QUERY = """
 SELECT
-    ap.id,
-    ap.position_id,
-    ap.symbol,
-    ap.exchange,
-    ap.entry_price,
-    ap.target_price,
-    ap.phase,
-    ap.hours_aged,
-    ap.loss_tolerance,
-    ap.created_at,
-    ap.updated_at
-FROM monitoring.aged_positions ap
-ORDER BY ap.hours_aged DESC
-LIMIT 50
+    p.id,
+    p.symbol,
+    p.exchange,
+    p.side,
+    p.entry_price,
+    p.current_price AS exit_price,
+    p.quantity,
+    p.realized_pnl,
+    p.pnl_percentage,
+    p.exit_reason,
+    p.opened_at,
+    p.closed_at,
+    EXTRACT(EPOCH FROM (p.closed_at - p.opened_at)) / 3600 AS hold_hours
+FROM monitoring.positions p
+WHERE p.status = 'closed' AND p.closed_at IS NOT NULL
+ORDER BY p.closed_at DESC
+LIMIT 30
 """
 
 # Event severity counts (last hour) for status bar badges

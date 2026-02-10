@@ -72,11 +72,11 @@ async def get_risk_events():
     return [e.model_dump(mode="json") for e in events]
 
 
-@router.get("/aged-positions")
-async def get_aged_positions():
+@router.get("/recent-trades")
+async def get_recent_trades():
     f = get_fetcher()
-    aged = await f.fetch_aged_positions()
-    return [a.model_dump(mode="json") for a in aged]
+    trades = await f.fetch_recent_trades()
+    return [t.model_dump(mode="json") for t in trades]
 
 
 @router.get("/pnl-history")

@@ -233,7 +233,8 @@ body {
 }
 
 .pnl-chart-card,
-.positions-card {
+.positions-card,
+.trades-card {
     grid-column: 1 / -1;
 }
 
@@ -638,10 +639,9 @@ body {
     color: var(--text-secondary);
 }
 
-/* ─── Risk & Aged ────────────────────────────────────── */
+/* ─── Risk Events ─────────────────────────────────────── */
 
-.risk-list,
-.aged-list {
+.risk-list {
     max-height: 260px;
     overflow-y: auto;
     display: flex;
@@ -685,44 +685,40 @@ body {
     font-family: 'JetBrains Mono', monospace;
 }
 
-.aged-item {
-    padding: 8px 10px;
-    background: var(--bg-tertiary);
-    border-radius: var(--radius-sm);
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    font-size: 0.78em;
-    border-left: 2px solid var(--warning);
-    transition: background 0.12s;
+/* ─── Recent Trades ─────────────────────────────────── */
+
+.trades-card .table-wrapper {
+    max-height: 400px;
+    overflow-y: auto;
 }
 
-.aged-item:hover {
-    background: var(--bg-card-hover);
+.trade-win td:first-child {
+    border-left: 2px solid var(--profit);
 }
 
-.aged-item__info {
-    display: flex;
-    gap: 10px;
-    align-items: center;
+.trade-loss td:first-child {
+    border-left: 2px solid var(--loss);
 }
 
-.aged-item__symbol {
-    font-weight: 600;
-}
-
-.aged-item__phase {
-    font-size: 0.8em;
-    padding: 1px 5px;
-    border-radius: 3px;
-    background: var(--warning-bg);
-    color: var(--warning);
+.reason-badge {
+    display: inline-block;
+    padding: 1px 6px;
+    border-radius: 4px;
+    font-size: 0.82em;
     font-weight: 500;
+    background: rgba(139, 148, 158, 0.08);
+    color: var(--text-secondary);
+    font-family: 'Inter', sans-serif;
 }
 
-.aged-item__hours {
-    font-family: 'JetBrains Mono', monospace;
-    color: var(--text-secondary);
+.reason-badge.profit {
+    background: var(--profit-bg);
+    color: var(--profit);
+}
+
+.reason-badge.loss {
+    background: var(--loss-bg);
+    color: var(--loss);
 }
 
 /* ─── Footer ─────────────────────────────────────────── */

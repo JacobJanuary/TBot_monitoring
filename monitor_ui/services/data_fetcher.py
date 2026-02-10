@@ -14,7 +14,7 @@ from database.queries import (
     DAILY_PNL_QUERY,
     TRAILING_STOP_DETAILS_QUERY,
     RISK_EVENTS_QUERY,
-    AGED_POSITIONS_QUERY,
+    RECENT_TRADES_QUERY,
     EVENT_SEVERITY_COUNTS_QUERY,
     PERFORMANCE_SUMMARY_QUERY,
     HEALTH_CHECK_QUERY,
@@ -26,7 +26,7 @@ from database.models import (
     SystemStatus,
     TrailingStopView,
     RiskEventView,
-    AgedPositionView,
+    RecentTradeView,
     PnlDataPoint,
     PerformanceMetricView,
 )
@@ -68,7 +68,7 @@ class DataFetcher:
         self._status: Optional[SystemStatus] = None
         self._trailing_stops: List[TrailingStopView] = []
         self._risk_events: List[RiskEventView] = []
-        self._aged_positions: List[AgedPositionView] = []
+        self._recent_trades: List[RecentTradeView] = []
         self._pnl_hourly: List[PnlDataPoint] = []
         self._pnl_daily: List[PnlDataPoint] = []
         self._performance: List[PerformanceMetricView] = []
@@ -166,13 +166,13 @@ class DataFetcher:
             pass
         return self._risk_events
 
-    async def fetch_aged_positions(self) -> List[AgedPositionView]:
+    async def fetch_recent_trades(self) -> List[RecentTradeView]:
         try:
-            rows = await self._execute_query(AGED_POSITIONS_QUERY)
-            self._aged_positions = [AgedPositionView(**_row_to_dict(r)) for r in rows]
+            rows = await self._execute_query(RECENT_TRADES_QUERY)
+            self._recent_trades = [RecentTradeView(**_row_to_dict(r)) for r in rows]
         except Exception:
             pass
-        return self._aged_positions
+        return self._recent_trades
 
     async def fetch_pnl_hourly(self) -> List[PnlDataPoint]:
         try:
@@ -241,7 +241,7 @@ class DataFetcher:
             self.fetch_status(),
             self.fetch_trailing_stops(),
             self.fetch_risk_events(),
-            self.fetch_aged_positions(),
+            self.fetch_recent_trades(),
             self.fetch_pnl_hourly(),
             self.fetch_pnl_daily(),
             self.fetch_performance(),
@@ -263,7 +263,7 @@ class DataFetcher:
             "status": self._status.model_dump(mode="json") if self._status else None,
             "trailing_stops": [t.model_dump(mode="json") for t in self._trailing_stops],
             "risk_events": [r.model_dump(mode="json") for r in self._risk_events],
-            "aged_positions": [a.model_dump(mode="json") for a in self._aged_positions],
+            "recent_trades": [t.model_dump(mode="json") for t in self._recent_trades],
             "pnl_hourly": [p.model_dump(mode="json") for p in self._pnl_hourly],
             "pnl_daily": [p.model_dump(mode="json") for p in self._pnl_daily],
             "performance": [p.model_dump(mode="json") for p in self._performance],

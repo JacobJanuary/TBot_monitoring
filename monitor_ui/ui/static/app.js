@@ -166,7 +166,7 @@
         if (data.status) renderStatus(data.status);
         if (data.trailing_stops) renderTrailingStops(data.trailing_stops);
         if (data.risk_events) renderRiskEvents(data.risk_events);
-        if (data.aged_positions) renderAgedPositions(data.aged_positions);
+        if (data.recent_trades) renderRecentTrades(data.recent_trades);
         if (data.pnl_hourly && state.pnlPeriod === '24h') renderPnlChart(data.pnl_hourly, '24h');
         if (data.pnl_daily && state.pnlPeriod !== '24h') renderPnlChart(data.pnl_daily, state.pnlPeriod);
     }
@@ -546,28 +546,51 @@
         list.innerHTML = items.join('');
     }
 
-    // ─── Aged Positions ─────────────────────────────────────
+    // ─── Recent Trades ─────────────────────────────────────
 
-    function renderAgedPositions(positions) {
-        const list = $('#aged-list');
+    function renderRecentTrades(trades) {
+        const tbody = $('#trades-tbody');
+        const count = $('#trades-count');
+        count.textContent = trades.length;
 
-        if (!positions || positions.length === 0) {
-            list.innerHTML = '<div class="event-placeholder">No aged positions</div>';
+        if (!trades || trades.length === 0) {
+            tbody.innerHTML = '<tr class="empty-row"><td colspan="9">No closed trades</td></tr>';
             return;
         }
 
-        const items = positions.map(p => {
-            return `<div class="aged-item">
-                <div class="aged-item__info">
-                    <span class="aged-item__symbol">${p.symbol}</span>
-                    <span class="aged-item__phase">${p.phase}</span>
-                    <span class="aged-item__hours">${p.hours_aged}h</span>
-                </div>
-                <span style="font-size:0.8em;color:var(--text-muted)">${p.exchange}</span>
-            </div>`;
+        const rows = trades.map(t => {
+            const sideClass = t.side?.toLowerCase() === 'long' ? 'side-long' : 'side-short';
+            const pnlCls = pnlClass(t.realized_pnl);
+            const isWin = Number(t.realized_pnl || 0) >= 0;
+
+            // Exit reason badge
+            let reasonBadge = '—';
+            if (t.exit_reason_display && t.exit_reason_display !== '—') {
+                const reasonClass = t.exit_reason?.includes('stop') ? 'loss'
+                    : t.exit_reason?.includes('trailing') ? 'profit'
+                        : '';
+                reasonBadge = `<span class="reason-badge ${reasonClass}">${t.exit_reason_display}</span>`;
+            }
+
+            // Closed timestamp
+            const closedAt = t.closed_at ? new Date(t.closed_at).toLocaleDateString('en-US', {
+                month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false
+            }) : '—';
+
+            return `<tr class="${isWin ? 'trade-win' : 'trade-loss'}">
+                <td><strong>${t.symbol || '—'}</strong></td>
+                <td class="${sideClass}">${(t.side || '').toUpperCase()}</td>
+                <td>${formatPrice(t.entry_price)}</td>
+                <td>${formatPrice(t.exit_price)}</td>
+                <td class="${pnlCls}"><strong>${formatPnl(t.realized_pnl)}</strong></td>
+                <td class="${pnlCls}">${formatPercent(t.pnl_percentage)}</td>
+                <td>${reasonBadge}</td>
+                <td>${t.hold_display || '—'}</td>
+                <td style="font-size:0.8em;color:var(--text-muted)">${closedAt}</td>
+            </tr>`;
         });
 
-        list.innerHTML = items.join('');
+        tbody.innerHTML = rows.join('');
     }
 
     // ─── Event Handlers ─────────────────────────────────────

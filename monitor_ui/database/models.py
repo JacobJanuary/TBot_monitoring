@@ -207,19 +207,39 @@ class RiskEventView(BaseModel):
     created_at: Optional[datetime] = None
 
 
-class AgedPositionView(BaseModel):
-    """Aged position entry."""
+class RecentTradeView(BaseModel):
+    """Closed trade for history display."""
     id: int
-    position_id: str
     symbol: str
     exchange: str
+    side: str
     entry_price: float
-    target_price: float
-    phase: str
-    hours_aged: int
-    loss_tolerance: Optional[float] = None
-    created_at: Optional[datetime] = None
-    updated_at: Optional[datetime] = None
+    exit_price: Optional[float] = None
+    quantity: Optional[float] = None
+    realized_pnl: Optional[float] = None
+    pnl_percentage: Optional[float] = None
+    exit_reason: Optional[str] = None
+    opened_at: Optional[datetime] = None
+    closed_at: Optional[datetime] = None
+    hold_hours: Optional[float] = None
+
+    @computed_field
+    @property
+    def hold_display(self) -> str:
+        if self.hold_hours is None:
+            return '—'
+        if self.hold_hours < 1:
+            return f'{int(self.hold_hours * 60)}m'
+        if self.hold_hours < 24:
+            return f'{self.hold_hours:.1f}h'
+        return f'{self.hold_hours / 24:.1f}d'
+
+    @computed_field
+    @property
+    def exit_reason_display(self) -> str:
+        if not self.exit_reason:
+            return '—'
+        return self.exit_reason.replace('_', ' ').title()
 
 
 class PnlDataPoint(BaseModel):

@@ -167,10 +167,32 @@
             </div>
         </section>
 
-        <section class="card aged-card" id="aged-section">
-            <h2 class="card__title">Aged Positions</h2>
-            <div class="aged-list" id="aged-list">
-                <div class="event-placeholder">No aged positions</div>
+        <section class="card trades-card" id="trades-section">
+            <div class="card__header">
+                <h2 class="card__title">Recent Trades</h2>
+                <span class="card__count" id="trades-count">0</span>
+            </div>
+            <div class="table-wrapper">
+                <table class="data-table" id="trades-table">
+                    <thead>
+                        <tr>
+                            <th>Symbol</th>
+                            <th>Side</th>
+                            <th>Entry</th>
+                            <th>Exit</th>
+                            <th>PnL</th>
+                            <th>PnL %</th>
+                            <th>Reason</th>
+                            <th>Hold</th>
+                            <th>Closed</th>
+                        </tr>
+                    </thead>
+                    <tbody id="trades-tbody">
+                        <tr class="empty-row">
+                            <td colspan="9">No closed trades</td>
+                        </tr>
+                    </tbody>
+                </table>
             </div>
         </section>
     </main>
