@@ -183,15 +183,16 @@ SELECT
     p.entry_price,
     p.current_price AS exit_price,
     p.quantity,
-    p.realized_pnl,
+    p.pnl AS realized_pnl,
     p.pnl_percentage,
     p.exit_reason,
+    p.status,
     p.opened_at,
-    p.closed_at,
-    EXTRACT(EPOCH FROM (p.closed_at - p.opened_at)) / 3600 AS hold_hours
+    COALESCE(p.closed_at, p.updated_at) AS closed_at,
+    EXTRACT(EPOCH FROM (COALESCE(p.closed_at, p.updated_at) - p.opened_at)) / 3600 AS hold_hours
 FROM monitoring.positions p
-WHERE p.status = 'closed' AND p.closed_at IS NOT NULL
-ORDER BY p.closed_at DESC
+WHERE p.status IN ('closed', 'rolled_back', 'canceled')
+ORDER BY COALESCE(p.closed_at, p.updated_at) DESC
 LIMIT 30
 """
 

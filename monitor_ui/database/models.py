@@ -219,6 +219,7 @@ class RecentTradeView(BaseModel):
     realized_pnl: Optional[float] = None
     pnl_percentage: Optional[float] = None
     exit_reason: Optional[str] = None
+    status: Optional[str] = None
     opened_at: Optional[datetime] = None
     closed_at: Optional[datetime] = None
     hold_hours: Optional[float] = None
