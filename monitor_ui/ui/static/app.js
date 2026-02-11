@@ -237,6 +237,9 @@
 
     // ─── Events Stream ──────────────────────────────────────
 
+    // Track last rendered event fingerprint to avoid unnecessary DOM updates
+    let _lastEventsKey = '';
+
     function renderEvents(events) {
         const stream = $('#events-stream');
         let filtered = events;
@@ -261,11 +264,21 @@
         }
 
         if (filtered.length === 0) {
-            stream.innerHTML = '<div class="event-placeholder">No matching events</div>';
+            if (_lastEventsKey !== '__empty__') {
+                stream.innerHTML = '<div class="event-placeholder">No matching events</div>';
+                _lastEventsKey = '__empty__';
+            }
             return;
         }
 
-        const items = filtered.slice(0, 50).map(e => {
+        const display = filtered.slice(0, 50);
+
+        // Build a fingerprint from event IDs/timestamps to detect changes
+        const newKey = display.map(e => `${e.id || ''}:${e.created_at || ''}`).join('|');
+        if (newKey === _lastEventsKey) return; // nothing changed — skip DOM update
+        _lastEventsKey = newKey;
+
+        const items = display.map(e => {
             const sevClass = `severity-${(e.severity || 'info').toLowerCase()}`;
 
             // Extract a summary from event_data
