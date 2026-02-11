@@ -234,6 +234,7 @@ body {
 
 .pnl-chart-card,
 .positions-card,
+.signals-card,
 .trades-card {
     grid-column: 1 / -1;
 }
@@ -719,6 +720,103 @@ body {
 .reason-badge.loss {
     background: var(--loss-bg);
     color: var(--loss);
+}
+
+/* ─── Live Signals ──────────────────────────────────── */
+
+.signals-card .table-wrapper {
+    max-height: 350px;
+    overflow-y: auto;
+}
+
+.signal-header-right {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.signal-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.75em;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    padding: 3px 10px;
+    border-radius: 20px;
+    background: rgba(239, 68, 68, 0.12);
+    color: #ef4444;
+}
+
+.signal-status.connected {
+    background: rgba(16, 185, 129, 0.12);
+    color: #10b981;
+}
+
+.signal-status.disconnected {
+    background: rgba(239, 68, 68, 0.12);
+    color: #ef4444;
+}
+
+.pulse-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: currentColor;
+}
+
+.signal-status.connected .pulse-dot {
+    animation: pulse-green 2s ease-in-out infinite;
+}
+
+@keyframes pulse-green {
+
+    0%,
+    100% {
+        opacity: 1;
+    }
+
+    50% {
+        opacity: 0.3;
+    }
+}
+
+.score-high {
+    color: #fbbf24;
+    font-weight: 700;
+}
+
+.score-mid {
+    color: var(--profit);
+    font-weight: 600;
+}
+
+.score-low {
+    color: var(--text-muted);
+}
+
+.signal-patterns {
+    font-size: 0.82em;
+    color: var(--text-secondary);
+    max-width: 220px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.signal-row.signal-new {
+    animation: signal-flash 1.5s ease-out;
+}
+
+@keyframes signal-flash {
+    0% {
+        background: rgba(16, 185, 129, 0.15);
+    }
+
+    100% {
+        background: transparent;
+    }
 }
 
 /* ─── Footer ─────────────────────────────────────────── */

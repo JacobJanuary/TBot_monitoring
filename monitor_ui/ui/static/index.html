@@ -167,6 +167,38 @@
             </div>
         </section>
 
+        <section class="card signals-card" id="signals-section" style="display:none">
+            <div class="card__header">
+                <h2 class="card__title">Live Signals</h2>
+                <div class="signal-header-right">
+                    <span class="signal-status" id="signal-status">
+                        <span class="pulse-dot"></span> Disconnected
+                    </span>
+                    <span class="card__count" id="signals-count">0</span>
+                </div>
+            </div>
+            <div class="table-wrapper">
+                <table class="data-table" id="signals-table">
+                    <thead>
+                        <tr>
+                            <th>Symbol</th>
+                            <th>Score</th>
+                            <th>Patterns</th>
+                            <th>RSI</th>
+                            <th>Vol Z</th>
+                            <th>OI Δ%</th>
+                            <th>Time</th>
+                        </tr>
+                    </thead>
+                    <tbody id="signals-tbody">
+                        <tr class="empty-row">
+                            <td colspan="7">Waiting for signals...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
         <section class="card trades-card" id="trades-section">
             <div class="card__header">
                 <h2 class="card__title">Recent Trades</h2>

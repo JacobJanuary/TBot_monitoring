@@ -8,18 +8,25 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query
 from fastapi.responses import JSONResponse
 
 from services.data_fetcher import DataFetcher
+from services.signal_ws import SignalWSClient
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api")
 
-# Global reference — set by main.py at startup
+# Global references — set by main.py at startup
 _fetcher: Optional[DataFetcher] = None
+_signal_client: Optional[SignalWSClient] = None
 
 
 def set_fetcher(fetcher: DataFetcher):
     global _fetcher
     _fetcher = fetcher
+
+
+def set_signal_client(client: SignalWSClient):
+    global _signal_client
+    _signal_client = client
 
 
 def get_fetcher() -> DataFetcher:
@@ -96,6 +103,22 @@ async def get_performance():
     return [p.model_dump(mode="json") for p in perf]
 
 
+@router.get("/signals")
+async def get_signals(limit: int = Query(50, le=100)):
+    if _signal_client is None:
+        return []
+    return _signal_client.get_signals(limit)
+
+
+@router.get("/signal-status")
+async def get_signal_status():
+    if _signal_client is None:
+        return {"configured": False}
+    status = _signal_client.get_status()
+    status["configured"] = True
+    return status
+
+
 @router.get("/health")
 async def health_check():
     f = get_fetcher()
@@ -133,6 +156,10 @@ async def ws_live(websocket: WebSocket):
         f = get_fetcher()
         await asyncio.gather(f.fetch_all_fast(), f.fetch_all_slow())
         snapshot = f.get_full_snapshot()
+        # Include signal data in snapshot
+        if _signal_client is not None:
+            snapshot["signal_status"] = _signal_client.get_status()
+            snapshot["signals"] = _signal_client.get_signals()
         await websocket.send_json({"type": "snapshot", "data": snapshot})
 
         # Keep connection alive, listen for client messages

@@ -38,6 +38,11 @@ class Config:
     POSITION_AGE_WARNING_HOURS = int(os.getenv("POSITION_AGE_WARNING_HOURS", "12"))
     POSITION_AGE_CRITICAL_HOURS = int(os.getenv("POSITION_AGE_CRITICAL_HOURS", "24"))
 
+    # Signal WebSocket
+    SIGNAL_WS_URL = os.getenv("SIGNAL_WS_URL", "")
+    SIGNAL_WS_TOKEN = os.getenv("SIGNAL_WS_TOKEN", "")
+    SIGNAL_WS_RECONNECT_INTERVAL = int(os.getenv("SIGNAL_WS_RECONNECT_INTERVAL", "5"))
+
     # Logging
     LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
     LOG_FILE = os.getenv("LOG_FILE", "monitor_ui.log")

@@ -15,7 +15,8 @@ from fastapi.responses import FileResponse
 from config import Config
 from database.connection import DatabasePool
 from services.data_fetcher import DataFetcher
-from api import router, set_fetcher, ws_live, ws_push_loop
+from services.signal_ws import SignalWSClient
+from api import router, set_fetcher, set_signal_client, ws_live, ws_push_loop, broadcast_update
 
 logger = logging.getLogger(__name__)
 
@@ -49,12 +50,14 @@ def setup_logging(level: str):
 _pool = None
 _fetcher = None
 _push_task = None
+_signal_client = None
+_signal_task = None
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Manage startup and shutdown."""
-    global _pool, _fetcher, _push_task
+    global _pool, _fetcher, _push_task, _signal_client, _signal_task
 
     args = app.state.args
     config = Config()
@@ -101,10 +104,32 @@ async def lifespan(app: FastAPI):
     _push_task = asyncio.create_task(ws_push_loop(_fetcher))
     logger.info("WebSocket push loop started")
 
+    # Start Signal WebSocket client (if configured)
+    if config.SIGNAL_WS_URL and config.SIGNAL_WS_TOKEN:
+        _signal_client = SignalWSClient(
+            url=config.SIGNAL_WS_URL,
+            token=config.SIGNAL_WS_TOKEN,
+            reconnect_interval=config.SIGNAL_WS_RECONNECT_INTERVAL,
+        )
+        _signal_client.on_signal = broadcast_update
+        set_signal_client(_signal_client)
+        _signal_task = asyncio.create_task(_signal_client.run())
+        logger.info(f"Signal WS client started: {config.SIGNAL_WS_URL}")
+    else:
+        logger.info("Signal WS not configured — skipping")
+
     yield
 
     # Shutdown
     logger.info("Shutting down...")
+    if _signal_client:
+        _signal_client.stop()
+    if _signal_task:
+        _signal_task.cancel()
+        try:
+            await _signal_task
+        except asyncio.CancelledError:
+            pass
     if _push_task:
         _push_task.cancel()
         try:

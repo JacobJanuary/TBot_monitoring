@@ -147,12 +147,24 @@
                     state.ws.send('pong');
                 }
                 break;
+            case 'signal':
+                prependSignal(msg.data);
+                break;
+            case 'signals_batch':
+                if (msg.data && msg.data.signals) renderSignals(msg.data.signals);
+                break;
+            case 'signal_status':
+                renderSignalStatus(msg.data);
+                break;
         }
     }
 
     function renderAll(data) {
         renderFast(data);
         renderSlow(data);
+        // Signal data in initial snapshot
+        if (data.signals) renderSignals(data.signals);
+        if (data.signal_status) renderSignalStatus(data.signal_status);
     }
 
     function renderFast(data) {
@@ -591,6 +603,120 @@
         });
 
         tbody.innerHTML = rows.join('');
+    }
+
+    // ─── Live Signals ───────────────────────────────────────
+
+    function renderSignals(signals) {
+        const section = $('#signals-section');
+        const tbody = $('#signals-tbody');
+        const count = $('#signals-count');
+
+        if (!signals || signals.length === 0) {
+            // Keep section visibility as-is (only show if configured)
+            tbody.innerHTML = '<tr class="empty-row"><td colspan="7">Waiting for signals...</td></tr>';
+            count.textContent = '0';
+            return;
+        }
+
+        section.style.display = '';
+        count.textContent = signals.length;
+
+        const rows = signals.map(s => {
+            const score = Number(s.score || 0);
+            const scoreCls = score >= 130 ? 'score-high' : score >= 100 ? 'score-mid' : 'score-low';
+            const patterns = (s.patterns || []).join(', ') || '—';
+            const rsi = s.rsi != null ? Number(s.rsi).toFixed(1) : '—';
+            const vol = s.volume_zscore != null ? Number(s.volume_zscore).toFixed(1) : '—';
+            const oi = s.oi_delta_pct != null ? Number(s.oi_delta_pct).toFixed(1) : '—';
+
+            // Format time
+            let timeStr = '—';
+            if (s.timestamp) {
+                const d = new Date(s.timestamp);
+                if (!isNaN(d)) {
+                    timeStr = d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
+                } else {
+                    timeStr = s.timestamp.substring(11, 16) || s.timestamp;
+                }
+            }
+
+            return `<tr class="signal-row">
+                <td><strong>${s.symbol || '???'}</strong></td>
+                <td class="${scoreCls}"><strong>${score}</strong></td>
+                <td class="signal-patterns">${patterns}</td>
+                <td>${rsi}</td>
+                <td>${vol}</td>
+                <td>${oi}</td>
+                <td style="font-size:0.8em;color:var(--text-muted)">${timeStr}</td>
+            </tr>`;
+        });
+
+        tbody.innerHTML = rows.join('');
+    }
+
+    function prependSignal(sig) {
+        const section = $('#signals-section');
+        section.style.display = '';
+
+        const tbody = $('#signals-tbody');
+        const count = $('#signals-count');
+
+        // Remove empty placeholder
+        const empty = tbody.querySelector('.empty-row');
+        if (empty) empty.remove();
+
+        const score = Number(sig.score || 0);
+        const scoreCls = score >= 130 ? 'score-high' : score >= 100 ? 'score-mid' : 'score-low';
+        const patterns = (sig.patterns || []).join(', ') || '—';
+        const rsi = sig.rsi != null ? Number(sig.rsi).toFixed(1) : '—';
+        const vol = sig.volume_zscore != null ? Number(sig.volume_zscore).toFixed(1) : '—';
+        const oi = sig.oi_delta_pct != null ? Number(sig.oi_delta_pct).toFixed(1) : '—';
+        let timeStr = '—';
+        if (sig.timestamp) {
+            const d = new Date(sig.timestamp);
+            if (!isNaN(d)) {
+                timeStr = d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
+            } else {
+                timeStr = sig.timestamp.substring(11, 16) || sig.timestamp;
+            }
+        }
+
+        const tr = document.createElement('tr');
+        tr.className = 'signal-row signal-new';
+        tr.innerHTML = `
+            <td><strong>${sig.symbol || '???'}</strong></td>
+            <td class="${scoreCls}"><strong>${score}</strong></td>
+            <td class="signal-patterns">${patterns}</td>
+            <td>${rsi}</td>
+            <td>${vol}</td>
+            <td>${oi}</td>
+            <td style="font-size:0.8em;color:var(--text-muted)">${timeStr}</td>
+        `;
+        tbody.prepend(tr);
+
+        // Limit to 50 rows
+        while (tbody.children.length > 50) tbody.lastChild.remove();
+
+        count.textContent = tbody.children.length;
+    }
+
+    function renderSignalStatus(status) {
+        const section = $('#signals-section');
+        const badge = $('#signal-status');
+        if (!status) return;
+
+        if (status.configured || status.connected) {
+            section.style.display = '';
+        }
+
+        if (status.connected) {
+            badge.className = 'signal-status connected';
+            badge.innerHTML = '<span class="pulse-dot"></span> Connected';
+        } else {
+            badge.className = 'signal-status disconnected';
+            badge.innerHTML = '<span class="pulse-dot"></span> Disconnected';
+        }
     }
 
     // ─── Event Handlers ─────────────────────────────────────
