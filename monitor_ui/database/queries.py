@@ -88,8 +88,12 @@ WITH hourly_stats AS (
 ),
 ts_stats AS (
     SELECT
-        COUNT(*) FILTER (WHERE state = 'active') as ts_active_count
-    FROM monitoring.trailing_stop_state
+        COUNT(*) as ts_active_count
+    FROM monitoring.positions
+    WHERE closed_at > NOW() - INTERVAL '24 hours'
+        AND status = 'closed'
+        AND trailing_activated = true
+        AND symbol NOT LIKE 'PYTEST%'
 )
 SELECT
     h.opened_count,
