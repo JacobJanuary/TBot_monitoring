@@ -68,15 +68,15 @@ WITH hourly_stats AS (
         COUNT(*) FILTER (
             WHERE closed_at > NOW() - INTERVAL '24 hours'
             AND status = 'closed'
-            AND COALESCE(realized_pnl, pnl, unrealized_pnl, 0) > 0
+            AND COALESCE(realized_pnl, pnl, 0) > 0
         ) as winners,
         COUNT(*) FILTER (
             WHERE closed_at > NOW() - INTERVAL '24 hours'
             AND status = 'closed'
-            AND COALESCE(realized_pnl, pnl, unrealized_pnl, 0) < 0
+            AND COALESCE(realized_pnl, pnl, 0) < 0
         ) as losers,
         COALESCE(
-            SUM(COALESCE(realized_pnl, pnl, unrealized_pnl, 0))
+            SUM(COALESCE(realized_pnl, pnl, 0))
             FILTER (WHERE closed_at > NOW() - INTERVAL '24 hours' AND status = 'closed'),
             0
         ) as total_pnl,
@@ -84,6 +84,7 @@ WITH hourly_stats AS (
             FILTER (WHERE closed_at > NOW() - INTERVAL '24 hours' AND status = 'closed')
             as avg_duration
     FROM monitoring.positions
+    WHERE symbol NOT LIKE 'PYTEST%'
 ),
 ts_stats AS (
     SELECT
