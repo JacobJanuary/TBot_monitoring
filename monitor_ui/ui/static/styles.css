@@ -415,6 +415,55 @@ body {
     color: var(--text-muted);
 }
 
+/* ─── SL Proximity Bar ───────────────────────────────── */
+
+.sl-cell {
+    min-width: 100px;
+}
+
+.sl-bar-wrap {
+    height: 4px;
+    background: rgba(139, 148, 158, 0.12);
+    border-radius: 2px;
+    overflow: hidden;
+    margin-bottom: 3px;
+}
+
+.sl-bar {
+    height: 100%;
+    border-radius: 2px;
+    transition: width 0.6s ease;
+}
+
+.sl-bar.sl-safe {
+    background: var(--profit);
+}
+
+.sl-bar.sl-caution {
+    background: var(--warning);
+}
+
+.sl-bar.sl-danger {
+    background: var(--loss);
+}
+
+.sl-label {
+    font-size: 0.82em;
+    font-weight: 600;
+}
+
+.sl-label.sl-safe {
+    color: var(--profit);
+}
+
+.sl-label.sl-caution {
+    color: var(--warning);
+}
+
+.sl-label.sl-danger {
+    color: var(--loss);
+}
+
 /* ─── Events Stream ──────────────────────────────────── */
 
 .event-controls {

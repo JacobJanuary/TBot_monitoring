@@ -218,6 +218,26 @@
             if (p.age_hours > 24) ageClass = 'loss';
             else if (p.age_hours > 12) ageClass = 'warning-text';
 
+            // SL proximity bar
+            let slCell = '<td>—</td>';
+            if (p.sl_distance_pct != null) {
+                const dist = p.sl_distance_pct;
+                const absDist = Math.abs(dist);
+                // Color tiers: <2% = red, 2-5% = yellow, >5% = green
+                let barClass = 'sl-safe';
+                if (absDist < 2) barClass = 'sl-danger';
+                else if (absDist < 5) barClass = 'sl-caution';
+                // Bar width: map 0-10% distance to 100-0% bar fill (closer = more filled)
+                const fillPct = Math.max(0, Math.min(100, (1 - absDist / 10) * 100));
+                const sign = dist >= 0 ? '+' : '';
+                slCell = `<td class="sl-cell">
+                    <div class="sl-bar-wrap">
+                        <div class="sl-bar ${barClass}" style="width:${fillPct}%"></div>
+                    </div>
+                    <span class="sl-label ${barClass}">${sign}${dist.toFixed(1)}%</span>
+                </td>`;
+            }
+
             return `<tr>
                 <td><strong>${p.symbol || '—'}</strong></td>
                 <td>${p.exchange || '—'}</td>
@@ -226,7 +246,7 @@
                 <td>${formatPrice(p.current_price)}</td>
                 <td class="${pnlCls}"><strong>${formatPnl(p.unrealized_pnl)}</strong></td>
                 <td class="${pnlCls}">${formatPercent(p.pnl_percentage)}</td>
-                <td>${p.stop_loss_price ? formatPrice(p.stop_loss_price) : '—'}</td>
+                ${slCell}
                 <td>${tsBadge}</td>
                 <td class="${ageClass}">${p.age_display || '—'}</td>
             </tr>`;

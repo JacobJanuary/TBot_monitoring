@@ -60,6 +60,24 @@ class PositionView(BaseModel):
 
     @computed_field
     @property
+    def sl_distance_pct(self) -> Optional[float]:
+        """Distance from current price to stop loss as % of entry price.
+        Returns positive when price is above SL (safe), 0 when at SL.
+        """
+        if not self.stop_loss_price or not self.current_price or not self.entry_price:
+            return None
+        if self.entry_price == 0:
+            return None
+        # For LONG: (current - SL) / entry * 100  (positive = safe)
+        # For SHORT: (SL - current) / entry * 100  (positive = safe)
+        if self.side.lower() == 'long':
+            dist = (self.current_price - self.stop_loss_price) / self.entry_price * 100
+        else:
+            dist = (self.stop_loss_price - self.current_price) / self.entry_price * 100
+        return round(dist, 2)
+
+    @computed_field
+    @property
     def ts_progress(self) -> Optional[float]:
         """Trailing stop activation progress 0-100%."""
         if not self.ts_activation_price or not self.entry_price or not self.current_price:
