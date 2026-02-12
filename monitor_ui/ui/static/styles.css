@@ -464,6 +464,39 @@ body {
     color: var(--loss);
 }
 
+/* ─── Timeout Countdown ──────────────────────────────── */
+
+.timeout-safe {
+    color: var(--profit);
+    font-weight: 600;
+    font-size: 0.9em;
+}
+
+.timeout-warning {
+    color: var(--warning);
+    font-weight: 700;
+    font-size: 0.9em;
+}
+
+.timeout-overdue {
+    color: var(--loss);
+    font-weight: 700;
+    font-size: 0.9em;
+    animation: timeout-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes timeout-pulse {
+
+    0%,
+    100% {
+        opacity: 1;
+    }
+
+    50% {
+        opacity: 0.5;
+    }
+}
+
 /* ─── Events Stream ──────────────────────────────────── */
 
 .event-controls {

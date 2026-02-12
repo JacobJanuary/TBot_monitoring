@@ -28,10 +28,15 @@ SELECT
     ts.current_stop_price as ts_current_stop_price,
     ts.activation_price as ts_activation_price,
     ts.highest_profit_percent as ts_highest_profit_pct,
-    EXTRACT(EPOCH FROM (NOW() - p.opened_at)) / 3600 as age_hours
+    EXTRACT(EPOCH FROM (NOW() - p.opened_at)) / 3600 as age_hours,
+    EXTRACT(EPOCH FROM (
+        p.opened_at + COALESCE((sl.strategy_params->>'max_position_hours')::int, 24) * INTERVAL '1 hour' - NOW()
+    )) as timeout_remaining_seconds
 FROM monitoring.positions p
 LEFT JOIN monitoring.trailing_stop_state ts
     ON ts.symbol = p.symbol AND ts.exchange = p.exchange
+LEFT JOIN monitoring.signal_lifecycles sl
+    ON sl.symbol = p.symbol AND sl.exchange = p.exchange
 WHERE p.status = 'active'
 ORDER BY p.opened_at DESC
 """

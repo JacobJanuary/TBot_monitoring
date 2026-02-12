@@ -34,6 +34,34 @@ class PositionView(BaseModel):
     ts_activation_price: Optional[float] = None
     ts_highest_profit_pct: Optional[float] = None
     age_hours: Optional[float] = None
+    timeout_remaining_seconds: Optional[float] = None
+
+    @computed_field
+    @property
+    def timeout_display(self) -> str:
+        """Format timeout countdown for display."""
+        if self.timeout_remaining_seconds is None:
+            return "—"
+        secs = self.timeout_remaining_seconds
+        if secs <= 0:
+            return "OVERDUE"
+        hours = int(secs // 3600)
+        minutes = int((secs % 3600) // 60)
+        if hours > 0:
+            return f"{hours}h {minutes}m"
+        return f"{minutes}m"
+
+    @computed_field
+    @property
+    def timeout_class(self) -> str:
+        """CSS class for timeout display."""
+        if self.timeout_remaining_seconds is None:
+            return ""
+        if self.timeout_remaining_seconds <= 0:
+            return "timeout-overdue"
+        if self.timeout_remaining_seconds < 3600:
+            return "timeout-warning"
+        return "timeout-safe"
 
     @computed_field
     @property

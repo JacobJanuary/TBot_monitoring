@@ -256,6 +256,7 @@
                 <td class="${pnlCls}">${formatPercent(p.pnl_percentage)}</td>
                 ${slCell}
                 <td>${tsBadge}</td>
+                <td class="${p.timeout_class || ''}">${p.timeout_display || '—'}</td>
                 <td class="${ageClass}">${p.age_display || '—'}</td>
             </tr>`;
         });
