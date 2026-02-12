@@ -166,28 +166,34 @@ class EventView(BaseModel):
 
 
 class StatsView(BaseModel):
-    """Hourly statistics."""
+    """Hourly statistics — sourced from Binance API + DB."""
+    # DB-sourced (kept for opened/closed counts, TS)
     opened_count: int = 0
     closed_count: int = 0
+    ts_active_count: int = 0
+    avg_duration: Optional[float] = None
+    # Binance-sourced
+    wallet_balance: float = 0.0
+    net_pnl_24h: float = 0.0
+    gross_pnl_24h: float = 0.0
+    commission_24h: float = 0.0
+    funding_24h: float = 0.0
     winners: int = 0
     losers: int = 0
-    total_pnl: float = 0.0
-    avg_duration: Optional[float] = None
-    ts_active_count: int = 0
+    trade_count: int = 0
 
     @computed_field
     @property
     def win_rate(self) -> float:
-        total = self.winners + self.losers
-        if total == 0:
+        if self.trade_count == 0:
             return 0.0
-        return (self.winners / total) * 100
+        return round((self.winners / self.trade_count) * 100, 1)
 
     @computed_field
     @property
     def pnl_display(self) -> str:
-        sign = "+" if self.total_pnl >= 0 else ""
-        return f"{sign}{self.total_pnl:.2f}"
+        sign = "+" if self.net_pnl_24h >= 0 else ""
+        return f"{sign}{self.net_pnl_24h:.2f}"
 
 
 class SystemStatus(BaseModel):

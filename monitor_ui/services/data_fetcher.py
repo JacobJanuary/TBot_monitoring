@@ -1,6 +1,7 @@
 """DataFetcher — async database polling service for the web dashboard."""
 import logging
 import asyncio
+from services.binance_client import BinanceClient
 from datetime import datetime, timezone, timedelta
 from typing import List, Optional, Dict, Any
 from decimal import Decimal
@@ -58,8 +59,9 @@ def _row_to_dict(row) -> dict:
 class DataFetcher:
     """Fetches data from monitoring DB and caches results."""
 
-    def __init__(self, pool):
+    def __init__(self, pool, binance_client: BinanceClient = None):
         self.pool = pool
+        self._binance = binance_client
         self._start_time = datetime.now(timezone.utc)
         # Caches
         self._positions: List[PositionView] = []
@@ -122,12 +124,39 @@ class DataFetcher:
         return self._events
 
     async def fetch_stats(self) -> Optional[StatsView]:
+        """Fetch stats from DB (counts) + Binance API (PNL, balance)."""
+        db_data = {}
         try:
             rows = await self._execute_query(STATISTICS_QUERY)
             if rows:
-                self._stats = StatsView(**_row_to_dict(rows[0]))
+                db_data = _row_to_dict(rows[0])
         except Exception:
             pass
+
+        binance_data = {}
+        if self._binance:
+            try:
+                binance_data = await self._binance.fetch_stats()
+            except Exception as e:
+                logger.error(f"Binance stats fetch error: {e}")
+
+        # Merge: DB provides opened/closed/ts counts, Binance provides PNL + win/loss
+        merged = {
+            "opened_count": db_data.get("opened_count", 0),
+            "closed_count": db_data.get("closed_count", 0),
+            "ts_active_count": db_data.get("ts_active_count", 0),
+            "avg_duration": db_data.get("avg_duration"),
+            # Binance data
+            "wallet_balance": binance_data.get("wallet_balance", 0.0),
+            "net_pnl_24h": binance_data.get("net_pnl", 0.0),
+            "gross_pnl_24h": binance_data.get("gross_pnl", 0.0),
+            "commission_24h": binance_data.get("commission", 0.0),
+            "funding_24h": binance_data.get("funding", 0.0),
+            "winners": binance_data.get("winners", 0),
+            "losers": binance_data.get("losers", 0),
+            "trade_count": binance_data.get("trade_count", 0),
+        }
+        self._stats = StatsView(**merged)
         return self._stats
 
     async def fetch_status(self) -> Optional[SystemStatus]:

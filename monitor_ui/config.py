@@ -43,6 +43,11 @@ class Config:
     SIGNAL_WS_TOKEN = os.getenv("SIGNAL_WS_TOKEN", "")
     SIGNAL_WS_RECONNECT_INTERVAL = int(os.getenv("SIGNAL_WS_RECONNECT_INTERVAL", "5"))
 
+    # Binance API
+    BINANCE_API_KEY = os.getenv("BINANCE_API_KEY", "")
+    BINANCE_API_SECRET = os.getenv("BINANCE_API_SECRET", "")
+    BINANCE_UPDATE_INTERVAL = float(os.getenv("BINANCE_UPDATE_INTERVAL", "10.0"))
+
     # Logging
     LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
     LOG_FILE = os.getenv("LOG_FILE", "monitor_ui.log")

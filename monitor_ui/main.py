@@ -16,6 +16,7 @@ from config import Config
 from database.connection import DatabasePool
 from services.data_fetcher import DataFetcher
 from services.signal_ws import SignalWSClient
+from services.binance_client import BinanceClient
 from api import router, set_fetcher, set_signal_client, ws_live, ws_push_loop, broadcast_update
 
 logger = logging.getLogger(__name__)
@@ -52,12 +53,13 @@ _fetcher = None
 _push_task = None
 _signal_client = None
 _signal_task = None
+_binance_client = None
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Manage startup and shutdown."""
-    global _pool, _fetcher, _push_task, _signal_client, _signal_task
+    global _pool, _fetcher, _push_task, _signal_client, _signal_task, _binance_client
 
     args = app.state.args
     config = Config()
@@ -90,8 +92,15 @@ async def lifespan(app: FastAPI):
         logger.error(f"Database connection failed: {e}")
         raise
 
+    # Initialize Binance client (if configured)
+    if config.BINANCE_API_KEY and config.BINANCE_API_SECRET:
+        _binance_client = BinanceClient(config.BINANCE_API_KEY, config.BINANCE_API_SECRET)
+        logger.info("Binance API client initialized")
+    else:
+        logger.info("Binance API not configured — stats will use DB only")
+
     # Initialize data fetcher
-    _fetcher = DataFetcher(_pool)
+    _fetcher = DataFetcher(_pool, binance_client=_binance_client)
     set_fetcher(_fetcher)
 
     # Initial data load
@@ -136,6 +145,8 @@ async def lifespan(app: FastAPI):
             await _push_task
         except asyncio.CancelledError:
             pass
+    if _binance_client:
+        await _binance_client.close()
     await DatabasePool.close()
     logger.info("Shutdown complete")
 

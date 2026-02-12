@@ -353,8 +353,16 @@
     // ─── Stats Cards ────────────────────────────────────────
 
     function renderStats(stats) {
-        $('#stat-opened').textContent = stats.opened_count || 0;
-        $('#stat-closed').textContent = stats.closed_count || 0;
+        // Balance (from Binance)
+        const balanceEl = $('#val-balance');
+        if (balanceEl) {
+            const bal = stats.wallet_balance || 0;
+            balanceEl.textContent = '$' + bal.toFixed(2);
+        }
+
+        // Trade count (from Binance)
+        const tradesEl = $('#stat-trades');
+        if (tradesEl) tradesEl.textContent = stats.trade_count || 0;
 
         const winnersEl = $('#stat-winners');
         winnersEl.textContent = stats.winners || 0;
@@ -364,14 +372,13 @@
         losersEl.textContent = stats.losers || 0;
         losersEl.className = 'metric__val loss';
 
+        // Net PnL 24h (from Binance: gross + commission + funding)
         const pnlEl = $('#stat-total-pnl');
-        const pnl = stats.total_pnl || 0;
+        const pnl = stats.net_pnl_24h || 0;
         pnlEl.textContent = '$' + formatPnl(pnl);
         pnlEl.className = 'metric__val ' + pnlClass(pnl);
 
         $('#stat-ts-active').textContent = stats.ts_active_count || 0;
-
-
 
         const wr = stats.win_rate;
         $('#val-winrate').textContent = wr != null ? wr.toFixed(0) + '%' : '—';
