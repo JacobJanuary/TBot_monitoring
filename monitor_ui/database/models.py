@@ -64,7 +64,7 @@ class PositionView(BaseModel):
         """Distance from current price to stop loss as % of entry price.
         Returns positive when price is above SL (safe), 0 when at SL.
         """
-        if not self.stop_loss_price or not self.current_price or not self.entry_price:
+        if self.stop_loss_price is None or self.current_price is None or self.entry_price is None:
             return None
         if self.entry_price == 0:
             return None
@@ -80,7 +80,7 @@ class PositionView(BaseModel):
     @property
     def ts_progress(self) -> Optional[float]:
         """Trailing stop activation progress 0-100%."""
-        if not self.ts_activation_price or not self.entry_price or not self.current_price:
+        if self.ts_activation_price is None or self.entry_price is None or self.current_price is None:
             return None
         if self.ts_activated:
             return 100.0
