@@ -74,7 +74,7 @@ class DataFetcher:
         self._performance: List[PerformanceMetricView] = []
         self._severity_counts: Dict[str, int] = {}
         # Last event timestamp for incremental fetch
-        self._last_event_ts = datetime.now(timezone.utc) - timedelta(hours=1)
+        self._last_event_ts = datetime.now(timezone.utc) - timedelta(hours=24)
         # Error tracking
         self._consecutive_errors = 0
 
@@ -110,8 +110,8 @@ class DataFetcher:
                 for ev in new_events:
                     if ev.id not in existing_ids:
                         self._events.insert(0, ev)
-                # Trim to 200
-                self._events = self._events[:200]
+                # Trim to 500
+                self._events = self._events[:500]
                 # Update timestamp
                 if new_events:
                     latest = max(e.created_at for e in new_events if e.created_at)
