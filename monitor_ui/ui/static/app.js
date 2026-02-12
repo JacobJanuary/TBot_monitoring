@@ -220,15 +220,23 @@
 
             // SL proximity bar
             let slCell = '<td>—</td>';
-            if (p.sl_distance_pct != null) {
+            if (p.sl_distance_pct != null && p.stop_loss_price && p.entry_price) {
                 const dist = p.sl_distance_pct;
-                const absDist = Math.abs(dist);
-                // Color tiers: <2% = red, 2-5% = yellow, >5% = green
+                // SL gap = distance from entry to SL as % of entry
+                const slGapPct = Math.abs(p.entry_price - p.stop_loss_price) / p.entry_price * 100;
+                const halfGap = slGapPct / 2;
+
+                // Dynamic zones relative to SL gap:
+                // RED:    dist < halfGap  (bottom half — close to SL)
+                // YELLOW: halfGap <= dist < slGapPct + 1  (upper half to entry+1%)
+                // GREEN:  dist >= slGapPct + 1  (safely in profit)
                 let barClass = 'sl-safe';
-                if (absDist < 2) barClass = 'sl-danger';
-                else if (absDist < 5) barClass = 'sl-caution';
-                // Bar width: proportional to distance (fuller = safer)
-                const fillPct = Math.max(0, Math.min(100, (absDist / 10) * 100));
+                if (dist < halfGap) barClass = 'sl-danger';
+                else if (dist < slGapPct + 1) barClass = 'sl-caution';
+
+                // Bar fill: proportional within 0 to 2x SL gap
+                const barMax = slGapPct * 2;
+                const fillPct = Math.max(0, Math.min(100, (dist / barMax) * 100));
                 const sign = dist >= 0 ? '+' : '';
                 slCell = `<td class="sl-cell">
                     <div class="sl-bar-wrap">
