@@ -227,8 +227,8 @@
                 let barClass = 'sl-safe';
                 if (absDist < 2) barClass = 'sl-danger';
                 else if (absDist < 5) barClass = 'sl-caution';
-                // Bar width: map 0-10% distance to 100-0% bar fill (closer = more filled)
-                const fillPct = Math.max(0, Math.min(100, (1 - absDist / 10) * 100));
+                // Bar width: proportional to distance (fuller = safer)
+                const fillPct = Math.max(0, Math.min(100, (absDist / 10) * 100));
                 const sign = dist >= 0 ? '+' : '';
                 slCell = `<td class="sl-cell">
                     <div class="sl-bar-wrap">
