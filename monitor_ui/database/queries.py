@@ -49,8 +49,9 @@ SELECT
     severity
 FROM monitoring.events
 WHERE created_at > $1
+    AND event_type != 'position_updated'
 ORDER BY created_at DESC
-LIMIT 100
+LIMIT 200
 """
 
 # Statistics for the last 24 hours

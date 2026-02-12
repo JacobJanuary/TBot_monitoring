@@ -275,7 +275,7 @@
         // Apply filter
         if (state.eventFilter !== 'all') {
             const filterMap = {
-                'position': ['position_created', 'position_closed', 'position_updated', 'position_error', 'position_cleanup'],
+                'position': ['position_created', 'position_closed', 'position_error', 'position_cleanup'],
                 'order': ['order_placed', 'order_filled', 'order_cancelled', 'order_error'],
                 'stop': ['stop_loss_placed', 'stop_loss_triggered', 'stop_loss_updated', 'stop_loss_error'],
                 'trailing': ['trailing_stop_created', 'trailing_stop_activated', 'trailing_stop_updated', 'trailing_stop_breakeven', 'trailing_stop_removed'],
