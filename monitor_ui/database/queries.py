@@ -53,29 +53,29 @@ ORDER BY created_at DESC
 LIMIT 100
 """
 
-# Statistics for the last hour
+# Statistics for the last 24 hours
 STATISTICS_QUERY = """
 WITH hourly_stats AS (
     SELECT
-        COUNT(*) FILTER (WHERE opened_at > NOW() - INTERVAL '1 hour') as opened_count,
-        COUNT(*) FILTER (WHERE closed_at > NOW() - INTERVAL '1 hour' AND status = 'closed') as closed_count,
+        COUNT(*) FILTER (WHERE opened_at > NOW() - INTERVAL '24 hours') as opened_count,
+        COUNT(*) FILTER (WHERE closed_at > NOW() - INTERVAL '24 hours' AND status = 'closed') as closed_count,
         COUNT(*) FILTER (
-            WHERE closed_at > NOW() - INTERVAL '1 hour'
+            WHERE closed_at > NOW() - INTERVAL '24 hours'
             AND status = 'closed'
             AND COALESCE(realized_pnl, pnl, unrealized_pnl, 0) > 0
         ) as winners,
         COUNT(*) FILTER (
-            WHERE closed_at > NOW() - INTERVAL '1 hour'
+            WHERE closed_at > NOW() - INTERVAL '24 hours'
             AND status = 'closed'
             AND COALESCE(realized_pnl, pnl, unrealized_pnl, 0) < 0
         ) as losers,
         COALESCE(
             SUM(COALESCE(realized_pnl, pnl, unrealized_pnl, 0))
-            FILTER (WHERE closed_at > NOW() - INTERVAL '1 hour' AND status = 'closed'),
+            FILTER (WHERE closed_at > NOW() - INTERVAL '24 hours' AND status = 'closed'),
             0
         ) as total_pnl,
         AVG(EXTRACT(EPOCH FROM (closed_at - opened_at)))
-            FILTER (WHERE closed_at > NOW() - INTERVAL '1 hour' AND status = 'closed')
+            FILTER (WHERE closed_at > NOW() - INTERVAL '24 hours' AND status = 'closed')
             as avg_duration
     FROM monitoring.positions
 ),
@@ -202,7 +202,7 @@ SELECT
     severity,
     COUNT(*) as count
 FROM monitoring.events
-WHERE created_at > NOW() - INTERVAL '1 hour'
+WHERE created_at > NOW() - INTERVAL '24 hours'
     AND severity IN ('ERROR', 'CRITICAL', 'WARNING')
 GROUP BY severity
 """
@@ -234,5 +234,5 @@ SELECT
     MAX(opened_at) as last_position_time,
     (SELECT MAX(created_at) FROM monitoring.events) as last_event_time
 FROM monitoring.positions
-WHERE opened_at > NOW() - INTERVAL '1 hour'
+WHERE opened_at > NOW() - INTERVAL '24 hours'
 """
