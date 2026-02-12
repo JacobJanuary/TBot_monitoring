@@ -66,11 +66,14 @@ class PositionView(BaseModel):
             return None
         if self.ts_activated:
             return 100.0
-        total = abs(self.ts_activation_price - self.entry_price)
+        total = self.ts_activation_price - self.entry_price
         if total == 0:
             return 0.0
-        current = abs(self.current_price - self.entry_price)
-        return min(100.0, max(0.0, (current / total) * 100))
+        # Directional: for LONG, current > entry = positive progress
+        # For SHORT, current < entry = positive progress
+        current = self.current_price - self.entry_price
+        progress = (current / total) * 100
+        return min(100.0, max(0.0, progress))
 
 
 class EventView(BaseModel):
