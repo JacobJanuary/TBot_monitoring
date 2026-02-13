@@ -231,12 +231,12 @@
                 const consumedPct = 100 - remainPct;
 
                 // Color by how much gap is consumed:
-                // GREEN:  < 50% consumed (safe, above midpoint)
-                // YELLOW: 50-75% consumed (caution)
-                // RED:    > 75% consumed (danger, close to SL)
+                // GREEN:  < 25% consumed (safely in profit)
+                // YELLOW: 25-40% consumed (caution, price drifting to SL)
+                // RED:    >= 40% consumed (danger, significant move toward SL)
                 let barClass = 'sl-safe';
-                if (consumedPct >= 75) barClass = 'sl-danger';
-                else if (consumedPct >= 50) barClass = 'sl-caution';
+                if (consumedPct >= 40) barClass = 'sl-danger';
+                else if (consumedPct >= 25) barClass = 'sl-caution';
 
                 // Bar shows remaining safety (full = safe, empty = at SL)
                 const fillPct = Math.max(0, Math.min(100, remainPct));
