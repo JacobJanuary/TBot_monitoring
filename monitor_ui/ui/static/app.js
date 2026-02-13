@@ -224,19 +224,22 @@
                 const dist = p.sl_distance_pct;
                 // SL gap = distance from entry to SL as % of entry
                 const slGapPct = Math.abs(p.entry_price - p.stop_loss_price) / p.entry_price * 100;
-                const halfGap = slGapPct / 2;
 
-                // Dynamic zones relative to SL gap:
-                // RED:    dist < halfGap  (bottom half — close to SL)
-                // YELLOW: halfGap <= dist < slGapPct + 1  (upper half to entry+1%)
-                // GREEN:  dist >= slGapPct + 1  (safely in profit)
+                // How much of the gap remains? (100% = at entry, 0% = at SL)
+                const remainPct = slGapPct > 0 ? Math.max(0, Math.min(100, (dist / slGapPct) * 100)) : 0;
+                // Consumed = how much we've moved towards SL
+                const consumedPct = 100 - remainPct;
+
+                // Color by how much gap is consumed:
+                // GREEN:  < 50% consumed (safe, above midpoint)
+                // YELLOW: 50-75% consumed (caution)
+                // RED:    > 75% consumed (danger, close to SL)
                 let barClass = 'sl-safe';
-                if (dist < halfGap) barClass = 'sl-danger';
-                else if (dist < slGapPct + 1) barClass = 'sl-caution';
+                if (consumedPct >= 75) barClass = 'sl-danger';
+                else if (consumedPct >= 50) barClass = 'sl-caution';
 
-                // Bar fill: proportional within 0 to 2x SL gap
-                const barMax = slGapPct * 2;
-                const fillPct = Math.max(0, Math.min(100, (dist / barMax) * 100));
+                // Bar shows remaining safety (full = safe, empty = at SL)
+                const fillPct = Math.max(0, Math.min(100, remainPct));
                 const sign = dist >= 0 ? '+' : '';
                 slCell = `<td class="sl-cell">
                     <div class="sl-bar-wrap">
